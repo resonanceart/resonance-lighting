@@ -1,0 +1,13 @@
+[
+  {
+    "timestamp": "2026-06-13T16:00:13.112Z",
+    "tool": "bash",
+    "redacted": [
+      {
+        "type": "Email Address",
+        "count": 1
+      }
+    ],
+    "inputLength": 2026
+  }
+]
