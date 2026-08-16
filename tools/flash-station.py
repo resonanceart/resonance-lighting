@@ -885,13 +885,86 @@ async function tick(){
         <div class="kv">running <b class="mono">${m.fw||"?"}</b></div>
         <div class="kv mono">${m.batt_mv? (m.batt_mv/1000).toFixed(2)+" V":"—"} · rssi ${m.rssi??"—"} dBm${m.soc!=null? " · SoC "+m.soc+"%":""}</div></div>`;
     }
-    document.getElementById("fleet").innerHTML = fl || '<div class="empty" style="grid-column:1/-1">no heartbeats yet — Ben\'s dashboard must be running with the bridge plugged in</div>';
+    document.getElementById("fleet").innerHTML = fl || '<div class="empty" style="grid-column:1/-1">no heartbeats yet — the bridge dashboard (:8765) must be running with the bridge plugged in</div>';
     document.getElementById("fleet-count").textContent = mesh.length? ` — ${mesh.length} heard · ${live} live now` : "";
     document.getElementById("hist").innerHTML = fh || '<div class="empty" style="grid-column:1/-1">no lights flashed yet — every verified flash lands here with its MAC, permanently</div>';
   }catch(e){ /* server briefly away; keep last render */ }
 }
 setInterval(tick, 1000); tick();
 </script></div></body></html>
+"""
+
+
+FLEET_PAGE = """<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resonance Fleet</title>
+<style>
+:root{--paper:#07090c;--card:#121a26;--ink:#dce6ff;--muted:#9fb0c7;--line:#2a3a52;
+--accent:#5b8cff;--green:#3ddc97;--green-bg:#12312a;--amber:#ffb454;--amber-bg:#38290f;--grey:#7e8ea6;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+h1{font-family:"Seravek","Gill Sans","Avenir Next",system-ui;font-size:1.6rem;margin:0}
+.eyebrow{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 4px}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.85em}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 20px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px;min-width:110px}
+.stat b{display:block;font-size:1.7rem;font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:.74rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.cardp{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;border-left:5px solid var(--grey)}
+.cardp.live{border-left-color:var(--green)}
+.cardp.warm{border-left-color:var(--amber)}
+.cardp.quiet{opacity:.5}
+.cardp h3{margin:0 0 4px;font-size:1rem}
+.chip{display:inline-block;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.62rem;letter-spacing:.08em;font-weight:600;border-radius:999px;padding:2px 9px}
+.chip.live{background:var(--green-bg);color:var(--green)}
+.chip.warm{background:var(--amber-bg);color:var(--amber)}
+.chip.quiet{color:var(--grey);border:1px dashed var(--grey)}
+.chip.red{background:var(--green-bg);color:var(--green)}
+.kv{color:var(--muted);font-size:.78rem;margin:4px 0 0}
+.kv b{color:var(--ink)}
+.empty{color:var(--muted);border:1px dashed var(--line);border-radius:12px;padding:30px;text-align:center;grid-column:1/-1}
+</style></head><body><div class="wrap">
+<p class="eyebrow">Resonance Tree · live mesh · channel 11</p>
+<h1>Resonance Fleet</h1>
+<div class="stats">
+ <div class="stat"><b id="n-heard">0</b><span>lights heard</span></div>
+ <div class="stat"><b id="n-live">0</b><span>live right now</span></div>
+ <div class="stat"><b id="n-red">0</b><span>red-confirmed today</span></div>
+</div>
+<div class="cards" id="fleet"><div class="empty">listening for heartbeats…</div></div>
+</div><script>
+const MY_BOOT = "%%BOOT%%";
+let reloading = false;
+function fmtAge(s){ if(s<60) return Math.floor(s)+"s"; if(s<3600) return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h"; }
+async function tick(){
+  try{
+    const s = await (await fetch("/state")).json();
+    if(s.server_boot && s.server_boot !== MY_BOOT && !reloading){ reloading = true; location.reload(); return; }
+    const roster = s.roster||{};
+    const now = Date.now()/1000;
+    const mesh = Object.entries(s.mesh||{}).sort((a,b)=> b[1].heard_at - a[1].heard_at);
+    let live=0, html="";
+    for(const [fid,m] of mesh){
+      const age = now - m.heard_at;
+      const cls = age<30? "live" : age<360? "warm" : "quiet";
+      if(cls==="live") live++;
+      const e = roster[fid]||{};
+      const nm = e.name? `${e.name} <span class="kv mono" style="display:inline">${fid}</span>` : fid;
+      html += `<div class="cardp ${cls}"><h3>${nm}</h3>
+        <span class="chip ${cls}">${cls==="live"? "LIVE" : "heard "+fmtAge(age)+" ago"}</span>${e.red_confirmed_at? ` <span class="chip red">RED OK</span>`:""}
+        <div class="kv">running <b class="mono">${m.fw||"?"}</b></div>
+        <div class="kv mono">${m.batt_mv? (m.batt_mv/1000).toFixed(2)+" V":"—"} · rssi ${m.rssi??"—"} dBm${m.soc!=null? " · SoC "+m.soc+"%":""}</div></div>`;
+    }
+    document.getElementById("n-heard").textContent = mesh.length;
+    document.getElementById("n-live").textContent = live;
+    document.getElementById("n-red").textContent = Object.values(roster).filter(e=>e.red_confirmed_at).length;
+    if(html) document.getElementById("fleet").innerHTML = html;
+  }catch(err){}
+}
+setInterval(tick, 1000); tick();
+</script></body></html>
 """
 
 
@@ -927,6 +1000,9 @@ class Handler(BaseHTTPRequestHandler):
                     "bridges": sorted(KNOWN_BRIDGES),
                 }
             self._send(json.dumps(payload), "application/json")
+        elif getattr(self.server, "fleet_only", False):
+            self._send(FLEET_PAGE.replace("%%BOOT%%", SERVER_BOOT),
+                       "text/html; charset=utf-8")
         else:
             self._send(PAGE.replace("%%HOLD%%", str(CFG["hold_s"]))
                        .replace("%%BOOT%%", SERVER_BOOT), "text/html; charset=utf-8")
@@ -1086,6 +1162,10 @@ def main():
 
     threading.Thread(target=watcher, daemon=True).start()
     threading.Thread(target=udp_mesh_listener, daemon=True).start()
+    fleet_srv = ThreadingHTTPServer((args.bind, 8950), Handler)
+    fleet_srv.fleet_only = True
+    threading.Thread(target=fleet_srv.serve_forever, daemon=True).start()
+    print(f"Resonance Fleet: http://{args.bind}:8950")
     srv = ThreadingHTTPServer((args.bind, args.http_port), Handler)
     print(f"Flash Station: http://{args.bind}:{args.http_port}  "
           f"(watching {CFG['dev_glob']}"
