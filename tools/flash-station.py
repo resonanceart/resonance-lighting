@@ -45,6 +45,8 @@ STATE = {
     "results": {},    # dev path -> latest commission row summary
     "history": [],    # flashed-then-unplugged sessions (internal)
     "roster": {},     # fixture_id -> durable flashed-light ledger (persisted)
+    "mesh": {},       # fixture_id -> live heartbeat overlay (via bridge, if plugged)
+    "bridge": {"port": None, "mode": None, "last_rx": 0},
 }
 CFG = {"jsonl": None, "expect": 12, "dev_glob": "/dev/cu.usbmodem*", "hold_s": 90,
        "roster": None, "rescue_dir": None, "shim": None}
@@ -185,6 +187,141 @@ def poll_ports():
                         "result": STATE["results"].get(dev),
                         "usb": p.get("usb"),
                     })
+
+
+def _crc16_ccitt(data):
+    crc = 0xFFFF
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
+    return crc
+
+
+def _cobs_decode(chunk):
+    out = bytearray()
+    i = 0
+    while i < len(chunk):
+        code = chunk[i]
+        if code == 0:
+            return None
+        block = chunk[i + 1:i + code]
+        if len(block) != code - 1 or 0 in block:
+            return None
+        out += block
+        i += code
+        if code != 0xFF and i < len(chunk):
+            out.append(0)
+    return bytes(out)
+
+
+def _ingest_hb(fid, fw, batt_mv, soc, rssi):
+    STATE["mesh"][fid] = {
+        "heard_at": time.time(), "fw": fw or None,
+        "batt_mv": batt_mv, "soc": None if soc in (None, 255) else soc,
+        "rssi": rssi,
+    }
+
+
+_NB_PEER = re.compile(
+    r"nb-peer id=([0-9A-Fa-f]{6}).*?rssi=(-?\d+).*?bv=([\d.]+).*?soc=(-?\d+)")
+_NB_FW = re.compile(r"\bfw=(\S+)")
+
+
+def _parse_text_line(line):
+    m = _NB_PEER.search(line)
+    if not m:
+        return
+    fid = m.group(1).upper()
+    fwm = _NB_FW.search(line)
+    _ingest_hb(fid, fwm.group(1) if fwm else None,
+               int(float(m.group(3)) * 1000), int(m.group(4)), int(m.group(2)))
+
+
+def _parse_cambium_frame(body):
+    # body = ftype + payload + crc16(LE); RADIO_RX(0x02) = mac[6] rssi raw...
+    if len(body) < 3 or _crc16_ccitt(body[:-2]) != body[-2] | (body[-1] << 8):
+        return
+    ftype, payload = body[0], body[1:-2]
+    if ftype != 0x02 or len(payload) < 7 + 24:
+        return
+    raw, rssi = payload[7:], int.from_bytes(payload[6:7], "little", signed=True)
+    if len(raw) < 24 or raw[0] != 1 or raw[1] != 1:  # proto ver 1, NB_HEARTBEAT
+        return
+    fid = raw[2:5].hex().upper()
+    batt_mv = int.from_bytes(raw[13:15], "little", signed=True)
+    soc = raw[17]
+    fw = None
+    if len(raw) >= 83:  # fw_rev[24] tail at offset 59
+        fw = raw[59:83].split(b"\0")[0].decode("ascii", "replace") or None
+    _ingest_hb(fid, fw, batt_mv, soc, rssi)
+
+
+def bridge_reader(dev):
+    """Listen-only serial reader for the CoreS3 bridge — auto-detects Ben's
+    text mode (nb-* ASCII lines) vs cambium binary mode (COBS+CRC frames).
+    Never writes a byte to the port."""
+    try:
+        import serial
+        s = serial.Serial(dev, 115200, timeout=2)
+    except Exception as e:
+        STATE["bridge"] = {"port": None, "mode": f"open failed: {e!r}", "last_rx": 0}
+        return
+    STATE["bridge"] = {"port": dev, "mode": "sniffing", "last_rx": 0}
+    buf = bytearray()
+    mode = None
+    while STATE["ports"].get(dev, {}).get("present"):
+        try:
+            data = s.read(4096)
+        except Exception:
+            break
+        if not data:
+            continue
+        STATE["bridge"]["last_rx"] = time.time()
+        buf += data
+        if mode is None and len(buf) > 64:
+            mode = "cambium" if 0 in buf[:256] and any(b > 127 for b in buf[:256]) else "text"
+            STATE["bridge"]["mode"] = mode
+        if mode == "text" or mode is None:
+            while b"\n" in buf:
+                line, _, rest = bytes(buf).partition(b"\n")
+                buf = bytearray(rest)
+                try:
+                    _parse_text_line(line.decode("utf-8", "replace"))
+                except Exception:
+                    pass
+        elif mode == "cambium":
+            while b"\0" in buf:
+                chunk, _, rest = bytes(buf).partition(b"\0")
+                buf = bytearray(rest)
+                if chunk:
+                    decoded = _cobs_decode(chunk)
+                    if decoded:
+                        try:
+                            _parse_cambium_frame(decoded)
+                        except Exception:
+                            pass
+        if len(buf) > 65536:
+            buf = bytearray()
+    try:
+        s.close()
+    except Exception:
+        pass
+    STATE["bridge"] = {"port": None, "mode": "disconnected", "last_rx": 0}
+
+
+def maybe_start_bridge():
+    if STATE["bridge"]["port"]:
+        return
+    with LOCK:
+        for dev, p in STATE["ports"].items():
+            if not p["present"]:
+                continue
+            usb = p.get("usb") or {}
+            if usb.get("fixture_hint") in KNOWN_BRIDGES:
+                STATE["bridge"] = {"port": dev, "mode": "starting", "last_rx": 0}
+                threading.Thread(target=bridge_reader, args=(dev,), daemon=True).start()
+                return
 
 
 def usb_snapshot():
@@ -337,7 +474,8 @@ def watcher():
     # missing roster dir) — the watcher must survive ANY single-step failure.
     n = 0
     while True:
-        for step in (poll_ports, poll_jsonl, detect_flashing, autoflash_tick):
+        for step in (poll_ports, poll_jsonl, detect_flashing, autoflash_tick,
+                     maybe_start_bridge):
             try:
                 step()
             except Exception as e:
@@ -471,9 +609,21 @@ async function tick(){
     for(const [k,e] of entries){
       if(e.flashed) pass++; else fail++;
       const cls = e.flashed? "pass" : "fail";
+      const m = (s.mesh||{})[k];
+      const fresh = m && (Date.now()/1000 - m.heard_at) < 30;
+      let mesh = "";
+      if(fresh){
+        mesh = `<div class="kv" style="color:var(--green)">🔴 ON MESH · running <b class="mono">${m.fw||"fw n/a (short hb)"}</b> · ${(m.batt_mv/1000).toFixed(2)} V · heard ${Math.round(Date.now()/1000-m.heard_at)}s ago</div>`;
+      } else if(m){
+        mesh = `<div class="kv">last mesh contact ${fmtAge(Date.now()/1000-m.heard_at)} ago</div>`;
+      }
       fh += `<div class="cardp ${cls}"><h3>${e.fixture_id||k}</h3><span class="chip ${cls}">${e.flashed?"FLASHED ✓":"FAILED"}</span>
         <div class="kv">mac <b class="mono">${e.mac||"?"}</b></div>
-        <div class="kv">fw <span class="mono">${e.fw||"?"}</span>${e.first_pass_at? " · "+e.first_pass_at.slice(11,16)+"Z":""}</div></div>`;
+        <div class="kv">flashed fw <span class="mono">${e.fw||"?"}</span>${e.first_pass_at? " · "+e.first_pass_at.slice(11,16)+"Z":""}</div>${mesh}</div>`;
+    }
+    const br = s.bridge||{};
+    if(br.port){
+      document.getElementById("auto-note").textContent = (s.auto.note||"") + " · 🌉 bridge listening (" + (br.mode||"?") + ")";
     }
     const a = s.auto||{};
     document.getElementById("auto-state").textContent = a.armed_mah? ("AUTO ⚡ "+(a.armed_mah/1000)+" Ah") : "AUTO-FLASH OFF";
@@ -515,6 +665,8 @@ class Handler(BaseHTTPRequestHandler):
                     "jsonl": CFG["jsonl"],
                     "auto": {"armed_mah": AUTO["armed_mah"], "note": AUTO["last_note"],
                              "auto_available": bool(CFG["rescue_dir"])},
+                    "mesh": STATE["mesh"],
+                    "bridge": STATE["bridge"],
                 }
             self._send(json.dumps(payload), "application/json")
         else:
