@@ -1,0 +1,40 @@
+#!/bin/bash
+# revive — the defibrillator. Shock every USB-connected light awake and
+# flash it with the current Day Zero image.
+#
+#   ./tools/revive              # pounce every light on USB (bridge excluded)
+#   ./tools/revive <port>       # just one, e.g. /dev/cu.usbmodem114101
+#   IMG=<merged.bin> ./tools/revive   # override the image
+#
+# How the shock works: esptool's connect sequence forces the ESP32-S3 into
+# its ROM bootloader via DTR/RTS. In ROM it CANNOT sleep, park, or brown-out
+# gate — so a single connection wins against every sleeper behavior. The
+# one thing this cannot fix is a battery too flat to boot the chip at all:
+# leave that light plugged for a few minutes and run revive again.
+# Truly wedged boards: hold BOOT, tap RESET, release BOOT, then revive.
+set -u
+ESPTOOL=${ESPTOOL:-$HOME/Library/Python/3.9/bin/esptool.py}
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+IMG=${IMG:-$(ls -t "$REPO"/firmware/fixture/out/day-zero-*/fixture.ino.merged.bin 2>/dev/null | head -1)}
+BRIDGE=/dev/cu.usbmodem1301
+[ -z "$IMG" ] && { echo "no day-zero image found under firmware/fixture/out/"; exit 1; }
+echo "image: $IMG"
+if [ $# -ge 1 ]; then PORTS="$1"; else
+  PORTS=$(ls /dev/cu.usbmodem* 2>/dev/null | grep -v "^${BRIDGE}$")
+fi
+[ -z "$PORTS" ] && { echo "no lights on USB (bridge excluded)"; exit 1; }
+PIDS=""
+for P in $PORTS; do
+  [ "$P" = "$BRIDGE" ] && { echo "skip $P (bridge)"; continue; }
+  (
+    OUT=$("$ESPTOOL" --port "$P" --baud 921600 write_flash --erase-all 0x0 "$IMG" 2>&1)
+    MAC=$(echo "$OUT" | grep -m1 '^MAC:' | awk '{print $2}')
+    if echo "$OUT" | grep -q "Hash of data verified"; then
+      echo "✓ $P ${MAC:-?} revived + flashed"
+    else
+      echo "✗ $P ${MAC:-?} FAILED: $(echo "$OUT" | tail -1)"
+    fi
+  ) &
+  PIDS="$PIDS $!"
+done
+wait $PIDS
