@@ -12,7 +12,6 @@
 #include "nvs_store.h"
 #include "ota_verify.h"
 #include "power_glue.h"
-#include "sensors/sensors.h"
 #include "telemetry.h"
 
 #define RES_RX_HOLD_MS 600000UL      // heard-anything hold (10 min)
@@ -119,12 +118,11 @@ void behaviorOnDirectFrame(uint8_t r, uint8_t g, uint8_t b, uint8_t w,
 }
 
 
-#ifdef RES_QUIET_AUTONOMY
-// Idle look for the quiet posture: low-red listening beacon, and every 5 s a
-// 400 ms flash of THIS light's signature color (palette index from its MAC —
-// unique, stable, doubles as visual identification; Elliot 2026-08-15:
-// "every 5 seconds it will flash the light's unique color").
-static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t now) {
+#ifdef RES_BASIC_LISTENER
+// Basic supervised posture. A steady half-scale red means the fixture is
+// awake and listening. Bridge leases override it; expiry returns directly to
+// it. There are no boot, supply, identity, or sensor-created animations.
+static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t) {
   f.count = (uint8_t)pixels;
   frameClear(f);
   // BOOT SALUTE (Elliot 2026-08-15: "when flashed... blink red green then
@@ -287,7 +285,7 @@ void behaviorTick() {
     ProgramOutputs pout = {};
     gRuntime.tick(pin, pout);
     gFrame = pout.frame;
-#ifdef RES_QUIET_AUTONOMY
+#ifdef RES_BASIC_LISTENER
     // Slave/bench posture (Elliot 2026-08-15): no autonomous show — with no
     // explicit lease, render a LOW-RED idle beacon ("power efficient and
     // shows that it is ready for command") instead of the default programs.
@@ -318,7 +316,7 @@ void behaviorTick() {
       gNextChoreoTxMs = now + RES_CHOREO_KEEPALIVE_MS - 300 + jit; // +/-30%
     }
   } else {
-#ifdef RES_QUIET_AUTONOMY
+#ifdef RES_BASIC_LISTENER
     // Full-control posture: the program engine runs in DAY/BOOT states too,
     // so commanded frames (DIRECT stream / programs) render around the clock
     // and telemetry reports the true active program. First beacon build only
@@ -373,7 +371,7 @@ void behaviorTick() {
 }
 
 bool behaviorFrame(FrameBuffer &f) {
-#ifdef RES_QUIET_AUTONOMY
+#ifdef RES_BASIC_LISTENER
   // Quiet posture always has a frame: the low-red listening beacon (or a
   // leased/commanded frame). Keeps the LED rail up whenever the chip is awake.
   f = gFrame;
