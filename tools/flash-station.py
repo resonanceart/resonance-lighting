@@ -126,6 +126,21 @@ def autoflash_tick():
             return
         for dev in ready:
             STATE["ports"][dev]["flash_requested"] = False
+    # POWER SHIELD: a deep battery pulls the charger's full ~600 mA, and the
+    # flash write's own draw on top browns the board out mid-upload (three
+    # identical deaths on 08-16). Cap the charger to 100 mA just before the
+    # write — commissioning itself restores the 2 A cap. Best-effort: a
+    # ROM-parked board has no CLI and simply ignores this.
+    for dev in ready:
+        try:
+            import serial as pyserial
+            sp = pyserial.Serial(dev, 115200, timeout=1)
+            time.sleep(0.2)
+            sp.write(b"G100")
+            time.sleep(0.4)
+            sp.close()
+        except Exception:
+            pass
     mah = AUTO["armed_mah"] or 15000
     cmd = ["python3", CFG["shim"], "commission",
            "--out", CFG["jsonl"], "--append",
@@ -359,6 +374,9 @@ def bridge_reader(dev):
 
 
 def maybe_start_bridge():
+    if not CFG.get("bridge_reader"):
+        return  # opt-in only: Ben's net_bench_dashboard owns the bridge serial
+                # when it runs; two readers on one port split bytes into garbage
     if STATE["bridge"]["port"]:
         return
     with LOCK:
@@ -667,7 +685,14 @@ padding:26px;text-align:center}
 <div id="none" class="empty" style="display:none">Nothing on USB. Plug a light in — it appears here within a second.</div>
 <h2>Successfully flashed</h2>
 <div class="cards" id="hist"></div>
-<p class="note"><b>Flash-from-any-state protocol</b> (Ben's failure ladder): ① plug in — an awake board appears here in ~2 s → click its ⚡ button · ② nothing appears = chip asleep/parked: <b>hold BOOT, tap RESET, release BOOT</b> — bootloader can't sleep, board appears and stays · ③ still nothing: swap to a known-good data cable, then a direct Mac port · ④ still nothing: set the board aside — that's a hardware fault, not a flashing problem. After PASS: dark is normal for a parked board — it needs battery ≥3.10 V + 60 s healthy charge, then it reboots itself to <b>steady red</b>. Red = done, unplug.</p>
+<p class="note"><b>THE UNIVERSAL FLASH PROTOCOL</b> — works regardless of board state:<br>
+<b>⓪ Power first.</b> Direct Mac port beats the monitor hub (hub ports fold at 500 mA). Unknown or long-stored light? Let it charge 15 min on the cable before any attempt — nearly every failure is a starved cell.<br>
+<b>① Plug in.</b> Card appears and stays → click ⚡ (the station auto-caps the charger during the write so the flash can't be starved).<br>
+<b>② Nothing appears?</b> Hold BOOT, tap RESET, release BOOT <i>slowly</i> (hold BOOT a beat after RESET releases) — bootloader can't sleep, the card appears and stays. Or arm 🪤 for a bounded window and let its natural wake be caught.<br>
+<b>③ Upload dies partway / board vanishes mid-flash?</b> That's power: charge 15 min, move to a direct port, retry once.<br>
+<b>④ After PASS:</b> the station auto-reboots it into the new firmware. Dark is normal for a parked board — it needs ≥3.10 V + 60 s of healthy charge, then reboots itself to <b>steady red</b>. Don't touch it while it climbs; every reset restarts its clock.<br>
+<b>⑤ Red = done.</b> Tap ✔ RED confirmed, unplug, next light.<br>
+<b>⑥ Still nothing after ②–③ with a good cable on a direct port?</b> Hardware pile (dead cell / BMS lockout / lead) — that's a multimeter job, not a flashing job.</p>
 <p class="note">PASS comes from the batch tool's evidence JSONL and the light's own report-back (serial + WiFi). The CoreS3 bridge is auto-protected (never flashed) — plug it in anytime for live mesh badges. 🩺 CHECKUP tests each component the board carries: battery, charger, LED rail, radio, motion, ToF, pressure/temp, solenoid. (No fixture carries a laser.)</p>
 <script>
 const HOLD = %%HOLD%%;
