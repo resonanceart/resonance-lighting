@@ -255,3 +255,69 @@ table.data tbody tr:last-child td { border-bottom: none; }
 .warn-text { color: var(--warn); }
 .danger-text { color: var(--danger); }
 .empty { color: var(--muted); font-size: 0.85rem; margin: 4px 0; }
+
+/* ── data source chip ──────────────────────────────────── */
+.source { position: relative; margin-left: auto; }
+.source-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  min-height: 32px;
+}
+.source .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.source-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  width: min(300px, 84vw);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+.source-live { display: flex; gap: 6px; }
+.source-live input { flex: 1; min-height: var(--tap); }
+
+/* ── rssi signal ───────────────────────────────────────── */
+.rssi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+.rssi-cell {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+.rssi-bars { display: inline-flex; align-items: flex-end; gap: 2px; }
+.rssi-bars i { width: 4px; background: var(--line); border-radius: 1px; }
+.rssi-bars i.on { background: var(--accent); }
+.rssi-bars.b1 i.on { background: var(--danger); }
+.rssi-bars.b2 i.on { background: var(--warn); }
+
+/* ── program truth ─────────────────────────────────────── */
+.prog-list { display: grid; gap: 6px; }
+.prog-row {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.prog-bar { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.prog-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.6s ease; }
+
+/* ── command log ───────────────────────────────────────── */
+.cmd-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.8rem; }

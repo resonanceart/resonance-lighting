@@ -6,6 +6,9 @@ import { HoldCountdown } from '../widgets/HoldCountdown'
 import { FleetCensus } from '../widgets/FleetCensus'
 import { BatteryGauge } from '../widgets/BatteryGauge'
 import { IdentifyButton } from '../widgets/IdentifyButton'
+import { RssiSignal } from '../widgets/RssiSignal'
+import { ProgramTruth } from '../widgets/ProgramTruth'
+import { CommandLog } from '../widgets/CommandLog'
 
 /**
  * The widget registry — the Mirror's equivalent of the Network builder's
@@ -116,6 +119,36 @@ const DEFS: WidgetDef[] = [
       },
     ],
     component: BatteryGauge,
+  },
+  {
+    type: 'rssi-signal',
+    title: 'Signal strength',
+    icon: '📶',
+    tier: 'READ',
+    description: 'Downlink RSSI bars per fixture. Honest: text-mode feeds show none.',
+    defaults: { span: 2, config: { worstFirst: true } },
+    configFields: [{ key: 'worstFirst', label: 'Worst signal first', kind: 'toggle' }],
+    component: RssiSignal,
+  },
+  {
+    type: 'program-truth',
+    title: 'Program truth',
+    icon: '🎬',
+    tier: 'READ',
+    description: 'What the fleet is running, as a distribution. Carries its own staleness caveat.',
+    defaults: { span: 2, config: {} },
+    configFields: [],
+    component: ProgramTruth,
+  },
+  {
+    type: 'command-log',
+    title: 'Command audit trail',
+    icon: '📜',
+    tier: 'READ',
+    description: 'Every command that passed the fence, newest first. Empty = healthy.',
+    defaults: { span: 2, config: {} },
+    configFields: [],
+    component: CommandLog,
   },
   {
     type: 'identify',

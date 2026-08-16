@@ -9,6 +9,22 @@ import { getWidgetDef } from './registry'
  */
 
 const STORAGE_KEY = 'mirror-layout-v1'
+const SOURCE_KEY = 'mirror-datasource-v1'
+
+export type DataSource = { kind: 'mock' } | { kind: 'dashboard'; url: string }
+
+function loadSource(): DataSource {
+  try {
+    const raw = localStorage.getItem(SOURCE_KEY)
+    if (raw) {
+      const s = JSON.parse(raw) as DataSource
+      if (s.kind === 'dashboard' && typeof s.url === 'string') return s
+    }
+  } catch {
+    /* fall through to mock */
+  }
+  return { kind: 'mock' }
+}
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`
@@ -53,7 +69,7 @@ export function defaultLayout(): LayoutDoc {
         id: uid('p'),
         label: 'Locate',
         icon: '📍',
-        widgets: [w('identify', {}, 2)],
+        widgets: [w('identify', {}, 2), w('rssi-signal', {}, 2), w('command-log', {}, 2)],
       },
     ],
   }
@@ -76,8 +92,11 @@ interface MirrorStore {
   layout: LayoutDoc
   activePageId: string
   editMode: boolean
+  dataSource: DataSource
   /** Log of fenced command emissions (v1 has no radio — this is the audit trail). */
   commandLog: { at: number; cmd: MirrorCommand }[]
+
+  setDataSource: (s: DataSource) => void
 
   setActivePage: (id: string) => void
   toggleEdit: () => void
@@ -112,7 +131,17 @@ export const useMirror = create<MirrorStore>((set) => ({
   layout: load(),
   activePageId: load().pages[0]?.id ?? '',
   editMode: false,
+  dataSource: loadSource(),
   commandLog: [],
+
+  setDataSource: (s) => {
+    try {
+      localStorage.setItem(SOURCE_KEY, JSON.stringify(s))
+    } catch {
+      /* in-memory only */
+    }
+    set({ dataSource: s })
+  },
 
   setActivePage: (id) => set({ activePageId: id }),
   toggleEdit: () => set((s) => ({ editMode: !s.editMode })),

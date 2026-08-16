@@ -59,7 +59,9 @@ export type ConfigField =
  *  and no last_seen: recency is age_ms + the envelope ts_utc. */
 export interface FixtureState {
   fixtureId: string // last 6 hex of MAC
-  cls: 'downlight' | 'perimeter' | 'chandelier' | 'trunk'
+  /** 'unknown' when the source is the live wire — class comes from the
+   *  registry join, not the heartbeat. */
+  cls: 'downlight' | 'perimeter' | 'chandelier' | 'trunk' | 'unknown'
   battMv: number
   battMa: number
   /** 255 = no gauge reading. Render '—', never 0. */

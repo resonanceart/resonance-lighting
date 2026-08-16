@@ -5,22 +5,92 @@ import { EditPanel } from './components/EditPanel'
 import { getWidgetDef } from './lib/registry'
 import { useMirror } from './lib/store'
 import { sampleTelemetry } from './lib/mock'
+import { connectDashboard, type FeedStatus } from './lib/adapter'
 import type { Telemetry } from './lib/types'
+
+/** No background processes anywhere: the mock feed is an in-page interval,
+ *  the live feed is the browser's own EventSource to Ben's dashboard. Close
+ *  the tab and nothing of the Mirror keeps running. */
+function useTelemetry(): { telemetry: Telemetry; status: FeedStatus | 'mock' } {
+  const dataSource = useMirror((s) => s.dataSource)
+  const [telemetry, setTelemetry] = useState<Telemetry>(() => sampleTelemetry())
+  const [status, setStatus] = useState<FeedStatus | 'mock'>('mock')
+
+  useEffect(() => {
+    if (dataSource.kind === 'mock') {
+      setStatus('mock')
+      const t = setInterval(() => setTelemetry(sampleTelemetry()), 1000)
+      return () => clearInterval(t)
+    }
+    return connectDashboard(dataSource.url, setTelemetry, setStatus)
+  }, [dataSource])
+
+  return { telemetry, status }
+}
+
+const STATUS_DOT: Record<string, string> = {
+  mock: 'var(--muted)',
+  connecting: 'var(--warn)',
+  live: 'var(--ok)',
+  error: 'var(--danger)',
+}
+
+function SourceControl({ status }: { status: string }) {
+  const dataSource = useMirror((s) => s.dataSource)
+  const setDataSource = useMirror((s) => s.setDataSource)
+  const [open, setOpen] = useState(false)
+  const [url, setUrl] = useState(dataSource.kind === 'dashboard' ? dataSource.url : 'http://127.0.0.1:8765')
+
+  return (
+    <div className="source">
+      <button className="source-chip" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <i className="dot" style={{ background: STATUS_DOT[status] ?? 'var(--muted)' }} />
+        {dataSource.kind === 'mock' ? 'mock feed' : `bench ${status}`}
+      </button>
+      {open && (
+        <div className="source-pop">
+          <button
+            className={`btn-line ${dataSource.kind === 'mock' ? 'ok-text' : ''}`}
+            onClick={() => {
+              setDataSource({ kind: 'mock' })
+              setOpen(false)
+            }}
+          >
+            Mock feed
+          </button>
+          <div className="source-live">
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="http://127.0.0.1:8765"
+              aria-label="Dashboard URL"
+            />
+            <button
+              className="btn-line"
+              onClick={() => {
+                setDataSource({ kind: 'dashboard', url })
+                setOpen(false)
+              }}
+            >
+              Connect
+            </button>
+          </div>
+          <p className="muted small">
+            Point at a running net_bench_dashboard.py (:8765). The Mirror is a second read-only consumer — no
+            processes of its own.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function App() {
   const layout = useMirror((s) => s.layout)
   const activePageId = useMirror((s) => s.activePageId)
   const editMode = useMirror((s) => s.editMode)
   const send = useMirror((s) => s.send)
-  const [telemetry, setTelemetry] = useState<Telemetry>(() => sampleTelemetry())
-
-  // Mock feed at 1 Hz — the same cadence NB_CHOREO_STATE would give us.
-  // Swapping this for the net_bench_dashboard /api/state adapter changes
-  // nothing downstream: widgets only ever see the Telemetry shape.
-  useEffect(() => {
-    const t = setInterval(() => setTelemetry(sampleTelemetry()), 1000)
-    return () => clearInterval(t)
-  }, [])
+  const { telemetry, status } = useTelemetry()
 
   const page = layout.pages.find((p) => p.id === activePageId) ?? layout.pages[0]
 
@@ -29,9 +99,8 @@ export default function App() {
       <main className="app-main">
         <div className="app-head">
           <h1>Resonance Mirror</h1>
-          <span className="muted">
-            {layout.name} · mock feed · {telemetry.fixtures.length} fixtures
-          </span>
+          <span className="muted">{telemetry.fixtures.length} heard</span>
+          <SourceControl status={status} />
         </div>
 
         {editMode && page && <EditPanel pageId={page.id} />}
