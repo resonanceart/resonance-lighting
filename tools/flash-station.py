@@ -66,7 +66,7 @@ _jsonl_offset = 0
 
 # Auto-flash: OFF until the operator arms it from the page with a battery size.
 # Never flashes a known bridge or a fixture already recorded as flashed.
-KNOWN_BRIDGES = {"E39F1C", "4D5DB0"}  # CoreS3 bridges share the fixture VID/PID
+KNOWN_BRIDGES = {"E39F1C", "4D5DB0", "E39A34"}  # CoreS3 bridges share the fixture VID/PID
 AUTO = {"armed_mah": 0, "batch": None, "last_note": "disarmed",
         "ambush_until": 0.0}  # while set: pounce on ANY appearing port (sleepers
                               # wake USB ~9 s per ~15 min; esptool connect pins
@@ -702,6 +702,7 @@ let excluded = {};
 function fmtAge(s){ if(s<60) return Math.floor(s)+"s"; if(s<3600) return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h"; }
 let s_roster = {};
 let s_checkups = {};
+let s_bridges = [];
 async function doflash(dev){ await fetch("/flash",{method:"POST",body:JSON.stringify({dev})}); tick(); }
 async function docheck(dev){ await fetch("/checkup",{method:"POST",body:JSON.stringify({dev})}); tick(); }
 async function ambush(min){ await fetch("/ambush",{method:"POST",body:String(min)}); tick(); }
@@ -713,6 +714,12 @@ async function setAside(fid){
   await fetch("/confirm",{method:"POST",body:JSON.stringify({fid,action:"aside",note})}); tick();
 }
 function liveCard(dev,p,r){
+  const hint0 = (p.usb||{}).fixture_hint;
+  if(hint0 && s_bridges.includes(hint0)){
+    return `<div class="cardp connected"><h3>🌉 BRIDGE ${hint0}</h3><span class="chip connected">BRIDGE</span>
+      <div class="kv">mac <span class="mono">${(p.usb||{}).serial||""}</span></div>
+      <div class="kv" style="color:var(--green)">protected — never flashed · feeding the fleet dashboard at :8765</div></div>`;
+  }
   const flashing = p.flashing && !r;
   const cls = r? r.verdict.toLowerCase() : flashing? "partial" : "connected";
   const chip = r? r.verdict : flashing? "⚡ FLASHING" : "CONNECTED";
@@ -808,6 +815,7 @@ async function tick(){
     }
     s_roster = s.roster||{};
     s_checkups = s.checkups||{};
+    s_bridges = s.bridges||[];
     const a = s.auto||{};
     const left = (a.ambush_until||0) - (a.now||0);
     if(left > 0){
@@ -861,6 +869,7 @@ class Handler(BaseHTTPRequestHandler):
                     "bridge": STATE["bridge"],
                     "server_boot": SERVER_BOOT,
                     "checkups": STATE.get("checkups", {}),
+                    "bridges": sorted(KNOWN_BRIDGES),
                 }
             self._send(json.dumps(payload), "application/json")
         else:
