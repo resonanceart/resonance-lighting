@@ -147,13 +147,14 @@ def roster_update(dev, summ):
     first_pass = e.get("first_pass_at")
     if summ["verdict"] == "PASS" and not first_pass:
         first_pass = summ.get("row_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    STATE["roster"][key] = {
+    # MERGE over the existing entry — operator-added fields (name, counted,
+    # note, …) must survive re-flashes AND the restart re-ingest of the JSONL.
+    STATE["roster"][key] = {**e, **{
         "fixture_id": summ.get("fixture_id"), "mac": summ.get("mac"),
         "fw": summ.get("fw"), "last_verdict": summ["verdict"],
         "flashed": bool(first_pass), "first_pass_at": first_pass,
         "last_port": dev, "last_row_at": summ.get("row_at"),
-        "name": e.get("name"),  # nicknames survive re-flashes
-    }
+    }}
     save_roster()
 
 
