@@ -32,6 +32,8 @@ fixtures: tap a card's "bridge" toggle to exclude it from the counts.
 import argparse
 import glob
 import json
+import re
+import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -68,6 +70,62 @@ def poll_ports():
                     "dev": dev, "at": now,
                     "result": STATE["results"].get(dev),
                 })
+
+
+def usb_snapshot():
+    """List real USB devices via system_profiler — the honest instrument.
+
+    A /dev/cu.* node can outlive its hardware (macOS stale-port trap, 08-15:
+    five ports showed, one real chip). This is the cross-check. Returns
+    [{loc, serial, name, mfr}]; loc is the locationID hex with trailing zeros
+    stripped, which macOS uses as the usbmodem name prefix.
+    """
+    try:
+        out = subprocess.run(
+            ["system_profiler", "SPUSBDataType", "-json"],
+            capture_output=True, text=True, timeout=15).stdout
+        data = json.loads(out)
+    except Exception:
+        return None  # instrument unavailable — report unknown, not absent
+    found = []
+
+    def walk(items):
+        for it in items or []:
+            loc = it.get("location_id", "")
+            if loc:
+                # 0x03110000 -> "311": port names drop leading AND trailing zeros
+                hexpart = loc.split("/")[0].strip().lower().replace("0x", "").strip("0") or "0"
+                found.append({"loc": hexpart, "serial": it.get("serial_num"),
+                              "name": it.get("_name"), "mfr": it.get("manufacturer")})
+            walk(it.get("_items"))
+    for bus in data.get("SPUSBDataType", []):
+        walk(bus.get("_items"))
+    return found
+
+
+def annotate_usb():
+    """Match present ports to real USB devices; derive fixture id from serial."""
+    devices = usb_snapshot()
+    if devices is None:
+        return
+    with LOCK:
+        for dev, p in STATE["ports"].items():
+            if not p["present"] or not dev.startswith("/dev/"):
+                continue
+            m = re.search(r"usbmodem(\w+)$", dev)
+            digits = m.group(1).lower() if m else ""
+            cands = [d for d in devices if d["loc"] and digits.startswith(d["loc"])]
+            # longest location prefix wins — a parent hub's shorter prefix also matches
+            hit = max(cands, key=lambda d: len(d["loc"]), default=None)
+            if hit:
+                serial = hit.get("serial") or ""
+                hexonly = re.sub(r"[^0-9A-Fa-f]", "", serial)
+                p["usb"] = {
+                    "serial": serial, "name": hit.get("name"), "mfr": hit.get("mfr"),
+                    "fixture_hint": hexonly[-6:].upper() if len(hexonly) >= 6 else None,
+                }
+            else:
+                p["usb"] = None  # checked, nothing behind it — stale port
 
 
 def summarize_row(row):
@@ -135,9 +193,13 @@ def poll_jsonl():
 
 
 def watcher():
+    n = 0
     while True:
         poll_ports()
         poll_jsonl()
+        if n % 5 == 0:
+            annotate_usb()  # ~1 s subprocess; every 5th tick is plenty
+        n += 1
         time.sleep(1.0)
 
 
@@ -225,6 +287,13 @@ function card(dev,p,r,gone){
     }
   } else if(!gone){
     kv = `<div class="kv">waiting for the batch tool's evidence row…</div>`;
+  }
+  if(!gone){
+    if(p.usb){
+      kv = `<div class="kv">on USB: <b class="mono">${p.usb.fixture_hint||"?"}</b> · ${p.usb.mfr||""} ${p.usb.name||""} <span class="mono">${p.usb.serial||""}</span></div>` + kv;
+    } else if(p.usb === null){
+      kv = `<div class="kv" style="color:var(--amber)">⚠ no USB hardware behind this port — stale entry; replug or ignore</div>` + kv;
+    }
   }
   const age = fmtAge(Date.now()/1000 - (gone? p.at : p.last_change||p.first_seen));
   const ex = excluded[dev] ? "true":"false";
