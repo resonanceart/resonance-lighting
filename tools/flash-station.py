@@ -591,9 +591,8 @@ function liveCard(dev,p,r){
     kv += `<div class="hold">⚡ queued — starting…</div>`;
   } else if(p.usb && p.usb.fixture_hint){
     const done = (s_roster[p.usb.fixture_hint]||{}).flashed;
-    kv += done
-      ? `<div class="kv" style="color:var(--green)">already in the flashed roster — will not re-flash</div>`
-      : `<div style="margin-top:8px"><button class="flashbtn" onclick="doflash('${dev}')">⚡ FLASH THIS LIGHT</button></div>`;
+    if(done) kv += `<div class="kv" style="color:var(--green)">already flashed ✓ (in roster)</div>`;
+    kv += `<div style="margin-top:8px"><button class="flashbtn" onclick="doflash('${dev}')">${done? "⚡ RE-FLASH" : "⚡ FLASH THIS LIGHT"}</button></div>`;
   }
   const age = fmtAge(Date.now()/1000 - (p.last_change||p.first_seen));
   const ex = excluded[dev] ? "true":"false";
