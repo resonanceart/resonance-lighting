@@ -12,6 +12,7 @@
 #include "nvs_store.h"
 #include "ota_verify.h"
 #include "power_glue.h"
+#include "sensors/sensors.h"
 #include "telemetry.h"
 
 #define RES_RX_HOLD_MS 600000UL      // heard-anything hold (10 min)
@@ -122,7 +123,7 @@ void behaviorOnDirectFrame(uint8_t r, uint8_t g, uint8_t b, uint8_t w,
 // Basic supervised posture. A steady half-scale red means the fixture is
 // awake and listening. Bridge leases override it; expiry returns directly to
 // it. There are no boot, supply, identity, or sensor-created animations.
-static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t) {
+static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t now) {
   f.count = (uint8_t)pixels;
   frameClear(f);
   // BOOT SALUTE (Elliot 2026-08-15: "when flashed... blink red green then
