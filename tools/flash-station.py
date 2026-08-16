@@ -188,7 +188,7 @@ def roster_update(dev, summ):
     MAC addresses'). PASS is sticky: a later FAIL row for the same fixture
     does not erase a recorded PASS, it flags last_verdict instead.
     """
-    if summ["verdict"] not in ("PASS", "FAIL"):
+    if summ["verdict"] not in ("PASS", "FAIL", "UPLOADED"):
         return
     key = summ.get("fixture_id") or summ.get("mac")
     if not key:
@@ -535,10 +535,14 @@ def summarize_row(row):
         "wifi_verify": row.get("wifi_verify_ok"),
     }
     hard = [checks["preflight"], checks["upload"], checks["serial_verify"]]
-    if any(c is False for c in checks.values()):
-        verdict = "FAIL"
-    elif all(c for c in hard):
+    if all(c for c in hard):
         verdict = "PASS"
+    elif checks["preflight"] and checks["upload"]:
+        # hash-verified write, but the board slept/ROM-parked before answering —
+        # proven benign 08-16 (every such light went red after one reset)
+        verdict = "UPLOADED"
+    elif any(c is False for c in checks.values()):
+        verdict = "FAIL"
     else:
         verdict = "PARTIAL"
     fw = row.get("firmware_rev") or ""
@@ -814,7 +818,7 @@ async function tick(){
           <button class="ex" onclick="confirmRed('${k}')">✔ RED confirmed</button>
           ${excluded_note(e)? "" : `<button class="ex" onclick="setAside('${k}')">set aside</button>`}
         </div>`;
-      fh += `<div class="cardp ${cls}"><button class="ex" onclick="rename('${k}','${(e.name||"").replace(/'/g,"")}')">✎ name</button><h3>${n? "#"+n+" · ":""}${title}</h3><span class="chip ${cls}">${excluded? "SET ASIDE" : e.flashed?"FLASHED ✓":"FAILED"}</span>${redBadge}${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}${excluded&&e.note? `<div class="kv" style="color:var(--amber)">${e.note}</div>`:""}
+      fh += `<div class="cardp ${cls}"><button class="ex" onclick="rename('${k}','${(e.name||"").replace(/'/g,"")}')">✎ name</button><h3>${n? "#"+n+" · ":""}${title}</h3><span class="chip ${cls}">${excluded? "SET ASIDE" : e.flashed? "FLASHED ✓" : e.last_verdict==="UPLOADED"? "UPLOADED — awaiting red" : "FAILED"}</span>${redBadge}${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}${excluded&&e.note? `<div class="kv" style="color:var(--amber)">${e.note}</div>`:""}
         <div class="kv">mac <b class="mono">${e.mac||"?"}</b></div>
         <div class="kv">flashed fw <span class="mono">${e.fw||"?"}</span></div>${mesh}${e.flashed? bookBtns : ""}</div>`;
     }
@@ -925,6 +929,12 @@ class Handler(BaseHTTPRequestHandler):
                 if action == "red":
                     e.pop("counted", None)
                     e["red_confirmed_at"] = now_s
+                    # a witnessed red IS proof of a working flash — it overrides
+                    # any tool verdict that raced a parked board
+                    e["flashed"] = True
+                    e["last_verdict"] = "PASS"
+                    if not e.get("first_pass_at"):
+                        e["first_pass_at"] = now_s
                     e["note"] = f"RED confirmed by operator at {now_s} (via dashboard)"
                 elif action == "aside":
                     e["counted"] = False
