@@ -12,10 +12,10 @@ export const TREE_TAB = 'tree'
  * exportable/importable as a file — the "no code changes" contract.
  */
 
-// v2 keys: the mock era's layouts/pins (fake IDs) are deliberately orphaned.
+// v2 keys orphaned the mock era; seats-v3 switched to world-metre coords.
 const STORAGE_KEY = 'mirror-layout-v2'
 const SOURCE_KEY = 'mirror-datasource-v2'
-const SEATS_KEY = 'mirror-seats-v2'
+const SEATS_KEY = 'mirror-seats-v3'
 
 function loadSeats(): SeatMap {
   try {

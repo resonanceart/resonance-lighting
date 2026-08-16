@@ -1,20 +1,24 @@
 import type { Telemetry } from './types'
 
 /**
- * The locate solver — the Mirror's copy-and-strip of the twin's selfmap idea:
- * heard lights place themselves in proportion to each other (pairwise RSSI →
- * distance springs) and to the fix points a human gives them (pinned seats are
- * immovable anchors). Pure incremental force relaxation; a few hundred ticks
- * converge and it runs happily at telemetry cadence.
+ * The locate solver — heard lights place themselves in proportion to each
+ * other (pairwise RSSI → distance springs) and to the fix points a human
+ * gives them (pinned seats are immovable anchors). Pure incremental force
+ * relaxation at telemetry cadence.
+ *
+ * ALL COORDINATES ARE WORLD METRES, Z-up plan view (x east, y north), tree
+ * axis at (0,0) — the same frame as the designed geometry. The world is
+ * larger than the tree: staging lights park in a field south of the
+ * perimeter (y ≈ +18 m) so "outside the tree" is literally outside the tree.
  *
  * Honesty: a light with no pin and no usable neighbor links does NOT get a
- * guessed position — it goes to the staging halo at the edge until data or a
- * human places it.
+ * guessed position — it parks in the staging field until data or a human
+ * places it.
  */
 
 export interface SeatMap {
-  /** Pinned fix point; `slot` present when snapped onto a designed slot
-   *  (F000–F129) — this map IS the missing MAC↔slot binding, born here. */
+  /** Pinned fix point in world metres; `slot` present when snapped onto a
+   *  designed slot — this map IS the missing MAC↔slot binding. */
   [id: string]: { x: number; y: number; slot?: string }
 }
 
@@ -23,16 +27,16 @@ export interface SolvedNode {
   x: number
   y: number
   pinned: boolean
-  /** false = staging halo (no basis for a position yet) */
+  /** false = staging field (no basis for a position yet) */
   placed: boolean
 }
 
-/** Log-distance path loss, tuned loose: -40 dBm ≈ 1 m, clamped to scene scale. */
+/** Log-distance path loss, tuned loose: -40 dBm ≈ 1 m. */
 export function rssiToMeters(rssi: number): number {
-  return Math.min(SCENE_METERS, Math.max(0.5, Math.pow(10, (-40 - rssi) / 25)))
+  return Math.min(WORLD_CLAMP_M, Math.max(0.5, Math.pow(10, (-40 - rssi) / 25)))
 }
 
-const SCENE_METERS = 14 // ~tree + perimeter ring diameter; normalizes to 0..1
+const WORLD_CLAMP_M = 23 // solver playground bound, ± metres
 
 interface P {
   x: number
@@ -54,12 +58,12 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
   const heard = telemetry.fixtures
   const ids = new Set(heard.map((f) => f.fixtureId))
 
-  // Springs: only pairs where both ends are currently heard.
-  const springs: { a: string; b: string; dNorm: number }[] = []
+  // Springs: only pairs where both ends are currently heard. Metres.
+  const springs: { a: string; b: string; dM: number }[] = []
   for (const f of heard) {
     for (const n of f.neighbors ?? []) {
       if (ids.has(n.id) && f.fixtureId < n.id) {
-        springs.push({ a: f.fixtureId, b: n.id, dNorm: rssiToMeters(n.rssi) / SCENE_METERS })
+        springs.push({ a: f.fixtureId, b: n.id, dM: rssiToMeters(n.rssi) })
       }
     }
   }
@@ -69,8 +73,7 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
     linkCount.set(s.b, (linkCount.get(s.b) ?? 0) + 1)
   }
 
-  // A node is placeable if pinned, or if it has ≥2 links into the placeable set
-  // (transitively — anchors and well-linked nodes carry their neighbors).
+  // Placeable = pinned, or ≥2 links into the heard set (transitively grown).
   const placeable = new Set<string>()
   for (const f of heard) if (seats[f.fixtureId]) placeable.add(f.fixtureId)
   let grew = true
@@ -86,10 +89,10 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
     }
   }
 
-  // Ensure solver state exists for every placeable node.
+  // Ensure solver state exists for every placeable node (spawn near the tree).
   for (const id of placeable) {
     if (!pos.has(id)) {
-      pos.set(id, { x: 0.3 + 0.4 * seeded(id, 7), y: 0.3 + 0.4 * seeded(id, 13), vx: 0, vy: 0 })
+      pos.set(id, { x: (seeded(id, 7) - 0.5) * 8, y: (seeded(id, 13) - 0.5) * 8, vx: 0, vy: 0 })
     }
   }
 
@@ -103,11 +106,11 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
     pos.set(id, p)
   }
 
-  // Relax: springs toward target distance + gentle centering, damped.
   const STEPS = 10
   const K = 0.4
   const CENTER = 0.003
   const DAMP = 0.72
+  const MIN_SEP_M = 1.2
   for (let step = 0; step < STEPS; step++) {
     for (const s of springs) {
       if (!placeable.has(s.a) || !placeable.has(s.b)) continue
@@ -115,8 +118,8 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
       const pb = pos.get(s.b)!
       const dx = pb.x - pa.x
       const dy = pb.y - pa.y
-      const d = Math.max(0.001, Math.hypot(dx, dy))
-      const f = K * (d - s.dNorm)
+      const d = Math.max(0.01, Math.hypot(dx, dy))
+      const f = K * (d - s.dM)
       const fx = (dx / d) * f
       const fy = (dy / d) * f
       if (!seats[s.a]) {
@@ -128,8 +131,8 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
         pb.vy -= fy
       }
     }
-    // Short-range repulsion between placeable nodes keeps the constellation
-    // from collapsing when only local neighbor springs exist (pre-anchor state).
+    // Short-range repulsion keeps the constellation from collapsing when only
+    // local neighbor springs exist (pre-anchor state).
     const list = [...placeable]
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
@@ -137,9 +140,9 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
         const pb = pos.get(list[j])!
         const dx = pb.x - pa.x
         const dy = pb.y - pa.y
-        const d = Math.max(0.005, Math.hypot(dx, dy))
-        if (d < 0.09) {
-          const f = 0.02 * (0.09 - d) / d
+        const d = Math.max(0.05, Math.hypot(dx, dy))
+        if (d < MIN_SEP_M) {
+          const f = (0.25 * (MIN_SEP_M - d)) / d
           if (!seats[list[i]]) {
             pa.vx -= dx * f
             pa.vy -= dy * f
@@ -154,20 +157,22 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
     for (const id of placeable) {
       if (seats[id]) continue
       const p = pos.get(id)!
-      p.vx += (0.5 - p.x) * CENTER
-      p.vy += (0.5 - p.y) * CENTER
+      p.vx += (0 - p.x) * CENTER
+      p.vy += (0 - p.y) * CENTER
       p.vx *= DAMP
       p.vy *= DAMP
-      p.x = Math.min(0.98, Math.max(0.02, p.x + p.vx * 0.5))
-      p.y = Math.min(0.98, Math.max(0.02, p.y + p.vy * 0.5))
+      p.x = Math.min(WORLD_CLAMP_M, Math.max(-WORLD_CLAMP_M, p.x + p.vx * 0.5))
+      p.y = Math.min(WORLD_CLAMP_M, Math.max(-WORLD_CLAMP_M, p.y + p.vy * 0.5))
     }
   }
 
-  // Emit: placeable nodes at solved positions; the rest wrap into staging
-  // rows along the bottom edge (a real fleet can park 40+ lights there).
+  // Emit: placeable at solved positions; the rest in the staging FIELD —
+  // a real place in the world south of the perimeter, rows growing outward.
   const out: SolvedNode[] = []
   let halo = 0
   const PER_ROW = 12
+  const ROW_GAP = 1.8
+  const COL_GAP = 1.7
   for (const f of heard) {
     const id = f.fixtureId
     if (placeable.has(id)) {
@@ -176,14 +181,14 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
     } else {
       const col = halo % PER_ROW
       const row = Math.floor(halo / PER_ROW)
-      out.push({ id, x: 0.08 + col * 0.076, y: 0.955 - row * 0.05, pinned: false, placed: false })
+      out.push({ id, x: (col - (PER_ROW - 1) / 2) * COL_GAP, y: 18.5 + row * ROW_GAP, pinned: false, placed: false })
       halo++
     }
   }
   return out
 }
 
-/** Test hook: drop all solver momentum (used after layout import/reset). */
+/** Drop all solver momentum (after layout import/reset). */
 export function resetSolver(): void {
   pos.clear()
 }
