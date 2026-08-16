@@ -729,7 +729,15 @@ async function tick(){
     s_roster = s.roster||{};
     s_checkups = s.checkups||{};
     const a = s.auto||{};
-    document.getElementById("auto-state").textContent = "MANUAL · " + ((a.armed_mah||15000)/1000) + " Ah";
+    const left = (a.ambush_until||0) - (a.now||0);
+    if(left > 0){
+      const mm = Math.floor(left/60), ss = String(Math.floor(left%60)).padStart(2,"0");
+      document.getElementById("auto-state").textContent = `🪤 AMBUSH · ${mm}:${ss} left`;
+      document.getElementById("auto-state").style.color = "var(--amber)";
+    } else {
+      document.getElementById("auto-state").textContent = "MANUAL · " + ((a.armed_mah||15000)/1000) + " Ah";
+      document.getElementById("auto-state").style.color = "";
+    }
     document.getElementById("auto-note").textContent = a.note||"flash fires only from a card's ⚡ button";
     document.getElementById("n-conn").textContent = conn;
     document.getElementById("n-pass").textContent = pass;
@@ -766,7 +774,9 @@ class Handler(BaseHTTPRequestHandler):
                     "expect": CFG["expect"],
                     "jsonl": CFG["jsonl"],
                     "auto": {"armed_mah": AUTO["armed_mah"], "note": AUTO["last_note"],
-                             "auto_available": bool(CFG["rescue_dir"])},
+                             "auto_available": bool(CFG["rescue_dir"]),
+                             "ambush_until": AUTO.get("ambush_until", 0),
+                             "now": time.time()},
                     "mesh": STATE["mesh"],
                     "bridge": STATE["bridge"],
                     "server_boot": SERVER_BOOT,
