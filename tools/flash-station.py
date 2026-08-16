@@ -145,13 +145,10 @@ PAGE = """<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Flash Station</title>
 <style>
-:root{--paper:#F6F8F7;--card:#FFF;--ink:#1A211F;--muted:#5B6863;--line:#DCE3E0;
---accent:#2E6E62;--blue:#2B5A9E;--blue-bg:#E3ECF8;--green:#2F6B3A;--green-bg:#E3F1E5;
---red:#A33A2E;--red-bg:#F9E4E1;--amber:#8A6116;--amber-bg:#F8EEDA;--grey:#7A8781;}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
---paper:#121715;--card:#191F1C;--ink:#E8EDEA;--muted:#93A09A;--line:#26302C;
---accent:#6FBFAE;--blue:#8FB4E8;--blue-bg:#1D2A3C;--green:#8FD19A;--green-bg:#1D2F21;
---red:#EE9184;--red-bg:#3A1F1B;--amber:#E0B45C;--amber-bg:#33290F;--grey:#6E7B75;}}
+/* Resonance controller night-navy scheme — same tokens as the twin (app/) */
+:root{--paper:#07090c;--card:#121a26;--ink:#dce6ff;--muted:#9fb0c7;--line:#2a3a52;
+--accent:#5b8cff;--blue:#5b8cff;--blue-bg:#1d2b47;--green:#3ddc97;--green-bg:#12312a;
+--red:#ff5b6e;--red-bg:#391c22;--amber:#ffb454;--amber-bg:#38290f;--grey:#7e8ea6;}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);
 font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5}
@@ -300,6 +297,8 @@ def main():
     ap.add_argument("--jsonl", help="evidence file fleet_usb_bringup.py is writing (may not exist yet)")
     ap.add_argument("--expect", type=int, default=12, help="batch size target (default 12)")
     ap.add_argument("--http-port", type=int, default=8940)
+    ap.add_argument("--bind", default="127.0.0.1",
+                    help="bind address; 0.0.0.0 exposes it on the LAN/Tailscale (read-only page)")
     ap.add_argument("--dev-glob", default="/dev/cu.usbmodem*",
                     help="port pattern to watch (override for testing)")
     ap.add_argument("--hold-s", type=int, default=90,
@@ -308,8 +307,8 @@ def main():
     CFG.update(jsonl=args.jsonl, expect=args.expect, dev_glob=args.dev_glob, hold_s=args.hold_s)
 
     threading.Thread(target=watcher, daemon=True).start()
-    srv = ThreadingHTTPServer(("127.0.0.1", args.http_port), Handler)
-    print(f"Flash Station: http://127.0.0.1:{args.http_port}  "
+    srv = ThreadingHTTPServer((args.bind, args.http_port), Handler)
+    print(f"Flash Station: http://{args.bind}:{args.http_port}  "
           f"(watching {CFG['dev_glob']}"
           + (f" + {CFG['jsonl']}" if CFG["jsonl"] else ", no JSONL yet") + ")")
     srv.serve_forever()
