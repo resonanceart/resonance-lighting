@@ -376,6 +376,28 @@ def bridge_reader(dev):
     STATE["bridge"] = {"port": None, "mode": "disconnected", "last_rx": 0}
 
 
+def udp_mesh_listener():
+    """Feed the mesh overlay from Ben's dashboard's UDP re-broadcast (:54321)
+    — same nb-peer lines, no serial-port contention with his dashboard."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        s.bind(("127.0.0.1", 54321))
+    except OSError:
+        try:
+            s.bind(("0.0.0.0", 54321))
+        except OSError:
+            return
+    while True:
+        try:
+            data, _ = s.recvfrom(4096)
+            for line in data.decode("utf-8", "replace").splitlines():
+                _parse_text_line(line)
+        except Exception:
+            time.sleep(0.5)
+
+
 def maybe_start_bridge():
     if not CFG.get("bridge_reader"):
         return  # opt-in only: Ben's net_bench_dashboard owns the bridge serial
@@ -690,6 +712,8 @@ padding:26px;text-align:center}
 <h2>Plugged in now</h2>
 <div class="cards" id="cards"></div>
 <div id="none" class="empty" style="display:none">Nothing on USB. Plug a light in — it appears here within a second.</div>
+<h2>Resonance Fleet <span class="kv" id="fleet-count" style="display:inline"></span></h2>
+<div class="cards" id="fleet"></div>
 <h2>Successfully flashed</h2>
 <div class="cards" id="hist"></div>
 <p class="note"><b>THE UNIVERSAL FLASH PROTOCOL</b> — works regardless of board state:<br>
@@ -845,6 +869,24 @@ async function tick(){
     document.getElementById("n-fail").textContent = fail;
     document.getElementById("cards").innerHTML = html;
     document.getElementById("none").style.display = html? "none":"block";
+    // Resonance Fleet: every light heard on the mesh, freshest first
+    const mesh = Object.entries(s.mesh||{}).sort((a,b)=> b[1].heard_at - a[1].heard_at);
+    let fl = "";
+    let live = 0;
+    for(const [fid,m] of mesh){
+      const age = Date.now()/1000 - m.heard_at;
+      const fresh = age < 30, warm = age < 360;
+      if(fresh) live++;
+      const e = s_roster[fid] || {};
+      const nm = e.name? `${e.name} <span class="kv mono" style="display:inline">${fid}</span>` : fid;
+      const cls = fresh? "pass" : warm? "partial" : "gone";
+      const chip = fresh? "🔴 LIVE" : warm? "heard "+fmtAge(age)+" ago" : "quiet "+fmtAge(age);
+      fl += `<div class="cardp ${cls}"><h3>${nm}${e.red_confirmed_at? ' <span class="chip pass">RED ✓</span>':''}</h3><span class="chip ${cls}">${chip}</span>
+        <div class="kv">running <b class="mono">${m.fw||"?"}</b></div>
+        <div class="kv mono">${m.batt_mv? (m.batt_mv/1000).toFixed(2)+" V":"—"} · rssi ${m.rssi??"—"} dBm${m.soc!=null? " · SoC "+m.soc+"%":""}</div></div>`;
+    }
+    document.getElementById("fleet").innerHTML = fl || '<div class="empty" style="grid-column:1/-1">no heartbeats yet — Ben\'s dashboard must be running with the bridge plugged in</div>';
+    document.getElementById("fleet-count").textContent = mesh.length? ` — ${mesh.length} heard · ${live} live now` : "";
     document.getElementById("hist").innerHTML = fh || '<div class="empty" style="grid-column:1/-1">no lights flashed yet — every verified flash lands here with its MAC, permanently</div>';
   }catch(e){ /* server briefly away; keep last render */ }
 }
@@ -1043,6 +1085,7 @@ def main():
     load_roster()
 
     threading.Thread(target=watcher, daemon=True).start()
+    threading.Thread(target=udp_mesh_listener, daemon=True).start()
     srv = ThreadingHTTPServer((args.bind, args.http_port), Handler)
     print(f"Flash Station: http://{args.bind}:{args.http_port}  "
           f"(watching {CFG['dev_glob']}"
