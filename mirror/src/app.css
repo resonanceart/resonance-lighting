@@ -420,3 +420,8 @@ table.data tbody tr:last-child td { border-bottom: none; }
   opacity: 0.38;
 }
 .feed-settings { display: grid; gap: 8px; }
+.constellation .slot.stale {
+  stroke: var(--danger);
+  stroke-dasharray: 0.5 0.5;
+  opacity: 0.22;
+}

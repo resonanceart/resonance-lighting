@@ -18,12 +18,18 @@ function signatureColor(id: string): string {
   return `hsl(${h * 30}, 72%, 62%)`
 }
 
-/** A designed slot from fixtures.json (ADR-0032-exact, metres → normalized). */
+/** A designed slot from fixtures.json (ADR-0032-exact, metres → normalized).
+ *  stale=true → rendered as a warning ghost and EXCLUDED from seat snapping:
+ *  blender-architect (2026-08-16) — 0.4.1's perimeter class (F106–F129,
+ *  r≈5 m) is superseded by Elliot's worksite spec (r 15.07 m, pole stations);
+ *  seating onto those slots would be ~10 m off the real install. The verified
+ *  replacement table lands after lighting-architect's sim check. */
 interface Slot {
   id: string
   x: number
   y: number
   role: string
+  stale: boolean
 }
 
 const SNAP_R = 0.035
@@ -53,6 +59,7 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
             role: f.role,
             x: (f.position[0] + 5.5) / 11,
             y: (f.position[1] + 5.5) / 11,
+            stale: f.role === 'perimeter',
           })),
         )
       })
@@ -102,6 +109,7 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
         let best: Slot | null = null
         let bestD = SNAP_R
         for (const s of slots) {
+          if (s.stale) continue // never seat onto superseded geometry
           const d = Math.hypot(s.x - seat.x, s.y - seat.y)
           if (d < bestD) {
             best = s
@@ -140,7 +148,7 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
 
         {/* the designed tree: prescriptive slot positions, faint until seated */}
         {slots.map((s) => (
-          <circle key={s.id} cx={s.x * 100} cy={s.y * 100} r={1.05} className="slot" />
+          <circle key={s.id} cx={s.x * 100} cy={s.y * 100} r={1.05} className={s.stale ? 'slot stale' : 'slot'} />
         ))}
 
         {staging.length > 0 && <text x={50} y={99} className="halo-label">staging</text>}
