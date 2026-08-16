@@ -5,85 +5,30 @@ import { EditPanel } from './components/EditPanel'
 import { Constellation } from './components/Constellation'
 import { getWidgetDef } from './lib/registry'
 import { useMirror, TREE_TAB } from './lib/store'
-import { sampleTelemetry } from './lib/mock'
 import { connectDashboard, type FeedStatus } from './lib/adapter'
 import type { Telemetry } from './lib/types'
 
-/** No background processes anywhere: the mock feed is an in-page interval,
- *  the live feed is the browser's own EventSource to Ben's dashboard. Close
- *  the tab and nothing of the Mirror keeps running. */
-function useTelemetry(): { telemetry: Telemetry; status: FeedStatus | 'mock' } {
+/**
+ * REAL DATA ONLY. The Mirror is the real-life listener: its single input is a
+ * running net_bench_dashboard.py (same-origin /bench proxy by default). No
+ * mock, no fake IDs, no background processes — the live feed is the browser's
+ * own EventSource, gone when the tab closes. An empty stage means nothing is
+ * being heard, and that is the truth.
+ */
+function useTelemetry(): { telemetry: Telemetry; status: FeedStatus } {
   const dataSource = useMirror((s) => s.dataSource)
-  const [telemetry, setTelemetry] = useState<Telemetry>(() => sampleTelemetry())
-  const [status, setStatus] = useState<FeedStatus | 'mock'>('mock')
+  const [telemetry, setTelemetry] = useState<Telemetry>({ now: 0, listenWindowS: 60, fixtures: [] })
+  const [status, setStatus] = useState<FeedStatus>('connecting')
 
-  useEffect(() => {
-    if (dataSource.kind === 'mock') {
-      setStatus('mock')
-      const t = setInterval(() => setTelemetry(sampleTelemetry()), 1000)
-      return () => clearInterval(t)
-    }
-    return connectDashboard(dataSource.url, setTelemetry, setStatus)
-  }, [dataSource])
+  useEffect(() => connectDashboard(dataSource.url, setTelemetry, setStatus), [dataSource.url])
 
   return { telemetry, status }
 }
 
-const STATUS_DOT: Record<string, string> = {
-  mock: 'var(--muted)',
+const STATUS_DOT: Record<FeedStatus, string> = {
   connecting: 'var(--warn)',
   live: 'var(--ok)',
   error: 'var(--danger)',
-}
-
-function SourceControl({ status }: { status: string }) {
-  const dataSource = useMirror((s) => s.dataSource)
-  const setDataSource = useMirror((s) => s.setDataSource)
-  const [open, setOpen] = useState(false)
-  const [url, setUrl] = useState(dataSource.kind === 'dashboard' ? dataSource.url : 'http://127.0.0.1:8765')
-
-  return (
-    <div className="source">
-      <button className="source-chip" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <i className="dot" style={{ background: STATUS_DOT[status] ?? 'var(--muted)' }} />
-        {dataSource.kind === 'mock' ? 'mock feed' : `bench ${status}`}
-      </button>
-      {open && (
-        <div className="source-pop">
-          <button
-            className={`btn-line ${dataSource.kind === 'mock' ? 'ok-text' : ''}`}
-            onClick={() => {
-              setDataSource({ kind: 'mock' })
-              setOpen(false)
-            }}
-          >
-            Mock feed
-          </button>
-          <div className="source-live">
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="http://127.0.0.1:8765"
-              aria-label="Dashboard URL"
-            />
-            <button
-              className="btn-line"
-              onClick={() => {
-                setDataSource({ kind: 'dashboard', url })
-                setOpen(false)
-              }}
-            >
-              Connect
-            </button>
-          </div>
-          <p className="muted small">
-            Point at a running net_bench_dashboard.py (:8765). The Mirror is a second read-only consumer — no
-            processes of its own.
-          </p>
-        </div>
-      )}
-    </div>
-  )
 }
 
 export default function App() {
@@ -104,7 +49,10 @@ export default function App() {
 
       <header className="app-head">
         <h1>Resonance Mirror</h1>
-        <SourceControl status={status} />
+        <span className="source-chip" title="Feed status">
+          <i className="dot" style={{ background: STATUS_DOT[status] }} />
+          {status === 'live' ? 'listening' : status}
+        </span>
       </header>
 
       {page && (
@@ -124,7 +72,7 @@ export default function App() {
                 )
               })}
             {page.widgets.length === 0 && (
-              <p className="empty span-2">Empty page — hit Edit and add widgets from the palette.</p>
+              <p className="empty span-2">Blank canvas — hit Edit and build this page from the widget palette.</p>
             )}
           </div>
         </div>

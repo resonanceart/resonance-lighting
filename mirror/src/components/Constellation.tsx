@@ -18,17 +18,46 @@ function signatureColor(id: string): string {
   return `hsl(${h * 30}, 72%, 62%)`
 }
 
+/** A designed slot from fixtures.json (ADR-0032-exact, metres → normalized). */
+interface Slot {
+  id: string
+  x: number
+  y: number
+  role: string
+}
+
+const SNAP_R = 0.035
+
 export function Constellation({ telemetry }: { telemetry: Telemetry }) {
   const pinSeat = useMirror((s) => s.pinSeat)
   const unpinSeat = useMirror((s) => s.unpinSeat)
+  const seats = useMirror((s) => s.seats)
   const send = useMirror((s) => s.send)
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
+  const [slots, setSlots] = useState<Slot[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<{ id: string; moved: boolean } | null>(null)
   const latest = useRef(telemetry)
   latest.current = telemetry
+
+  // The prescriptive tree: Blender lane's designed geometry (130 slots).
+  useEffect(() => {
+    fetch('/fixtures.json')
+      .then((r) => r.json())
+      .then((j: { fixtures: { fixture_id: string; role: string; position: number[] }[] }) => {
+        setSlots(
+          j.fixtures.map((f) => ({
+            id: f.fixture_id,
+            role: f.role,
+            x: (f.position[0] + 5.5) / 11,
+            y: (f.position[1] + 5.5) / 11,
+          })),
+        )
+      })
+      .catch(() => setSlots([])) // geometry missing = no slot layer, never a crash
+  }, [])
 
   // Solver runs at 4 Hz on the freshest snapshot — smooth drift, no rework
   // when the live feed replaces the mock.
@@ -63,7 +92,25 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
     pinSeat(drag.current.id, p.x, p.y) // dragging IS pinning — a fix point
   }
   const onPointerUp = () => {
-    if (drag.current && !drag.current.moved) setSelected(drag.current.id === selected ? null : drag.current.id)
+    if (drag.current && !drag.current.moved) {
+      setSelected(drag.current.id === selected ? null : drag.current.id)
+    } else if (drag.current) {
+      // Release near a designed slot → seat exactly there (MAC↔slot binding).
+      const id = drag.current.id
+      const seat = useMirror.getState().seats[id]
+      if (seat) {
+        let best: Slot | null = null
+        let bestD = SNAP_R
+        for (const s of slots) {
+          const d = Math.hypot(s.x - seat.x, s.y - seat.y)
+          if (d < bestD) {
+            best = s
+            bestD = d
+          }
+        }
+        if (best) pinSeat(id, best.x, best.y, best.id)
+      }
+    }
     drag.current = null
   }
 
@@ -90,6 +137,12 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
       >
         {/* perimeter reference ring */}
         <circle cx={50} cy={50} r={46} className="ring" />
+
+        {/* the designed tree: prescriptive slot positions, faint until seated */}
+        {slots.map((s) => (
+          <circle key={s.id} cx={s.x * 100} cy={s.y * 100} r={1.05} className="slot" />
+        ))}
+
         {staging.length > 0 && <text x={50} y={99} className="halo-label">staging</text>}
 
         {nodes.map((n) => (
@@ -112,7 +165,15 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
           <div className="light-card-head">
             <i className="dot" style={{ background: signatureColor(sel.fixtureId) }} />
             <span className="mono">{sel.fixtureId}</span>
-            <span className="muted small">{selNode.placed ? (selNode.pinned ? 'fixed point' : 'self-placed') : 'staging'}</span>
+            <span className="muted small">
+              {seats[sel.fixtureId]?.slot
+                ? `seated at ${seats[sel.fixtureId].slot}`
+                : selNode.placed
+                  ? selNode.pinned
+                    ? 'fixed point'
+                    : 'self-placed'
+                  : 'staging'}
+            </span>
           </div>
           <p className="muted small">
             {sel.soc === 255 ? 'SoC —' : `SoC ${sel.soc}%`} · {sel.battMv} mV · {sel.rssi} dBm · {sel.fwRev}

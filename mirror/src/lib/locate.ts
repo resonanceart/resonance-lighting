@@ -13,7 +13,9 @@ import type { Telemetry } from './types'
  */
 
 export interface SeatMap {
-  [id: string]: { x: number; y: number }
+  /** Pinned fix point; `slot` present when snapped onto a designed slot
+   *  (F000–F129) — this map IS the missing MAC↔slot binding, born here. */
+  [id: string]: { x: number; y: number; slot?: string }
 }
 
 export interface SolvedNode {
@@ -161,18 +163,20 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
     }
   }
 
-  // Emit: placeable nodes at solved positions; the rest in the staging halo.
+  // Emit: placeable nodes at solved positions; the rest wrap into staging
+  // rows along the bottom edge (a real fleet can park 40+ lights there).
   const out: SolvedNode[] = []
   let halo = 0
-  const staged = heard.filter((f) => !placeable.has(f.fixtureId)).length
+  const PER_ROW = 12
   for (const f of heard) {
     const id = f.fixtureId
     if (placeable.has(id)) {
       const p = pos.get(id)!
       out.push({ id, x: p.x, y: p.y, pinned: Boolean(seats[id]), placed: true })
     } else {
-      const t = staged <= 1 ? 0.5 : halo / (staged - 1)
-      out.push({ id, x: 0.06 + t * 0.88, y: 0.965, pinned: false, placed: false })
+      const col = halo % PER_ROW
+      const row = Math.floor(halo / PER_ROW)
+      out.push({ id, x: 0.08 + col * 0.076, y: 0.955 - row * 0.05, pinned: false, placed: false })
       halo++
     }
   }

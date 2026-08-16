@@ -9,6 +9,7 @@ import { IdentifyButton } from '../widgets/IdentifyButton'
 import { RssiSignal } from '../widgets/RssiSignal'
 import { ProgramTruth } from '../widgets/ProgramTruth'
 import { CommandLog } from '../widgets/CommandLog'
+import { FeedSettings } from '../widgets/FeedSettings'
 
 /**
  * The widget registry — the Mirror's equivalent of the Network builder's
@@ -149,6 +150,16 @@ const DEFS: WidgetDef[] = [
     defaults: { span: 2, config: {} },
     configFields: [],
     component: CommandLog,
+  },
+  {
+    type: 'feed-settings',
+    title: 'Feed settings',
+    icon: '📡',
+    tier: 'READ',
+    description: 'Where the Mirror listens — the bench dashboard URL.',
+    defaults: { span: 2, config: {} },
+    configFields: [],
+    component: FeedSettings,
   },
   {
     type: 'identify',

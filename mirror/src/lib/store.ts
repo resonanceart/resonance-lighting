@@ -12,9 +12,10 @@ export const TREE_TAB = 'tree'
  * exportable/importable as a file — the "no code changes" contract.
  */
 
-const STORAGE_KEY = 'mirror-layout-v1'
-const SOURCE_KEY = 'mirror-datasource-v1'
-const SEATS_KEY = 'mirror-seats-v1'
+// v2 keys: the mock era's layouts/pins (fake IDs) are deliberately orphaned.
+const STORAGE_KEY = 'mirror-layout-v2'
+const SOURCE_KEY = 'mirror-datasource-v2'
+const SEATS_KEY = 'mirror-seats-v2'
 
 function loadSeats(): SeatMap {
   try {
@@ -29,67 +30,37 @@ function loadSeats(): SeatMap {
   return {}
 }
 
-export type DataSource = { kind: 'mock' } | { kind: 'dashboard'; url: string }
+/** Real data only — the Mirror is the real-life listener. Default is the
+ *  same-origin /bench proxy to a running net_bench_dashboard.py. There is no
+ *  mock and there are no fake IDs anywhere in this app. */
+export type DataSource = { url: string }
 
 function loadSource(): DataSource {
   try {
     const raw = localStorage.getItem(SOURCE_KEY)
     if (raw) {
       const s = JSON.parse(raw) as DataSource
-      if (s.kind === 'dashboard' && typeof s.url === 'string') return s
+      if (typeof s.url === 'string' && s.url.length > 0) return s
     }
   } catch {
-    /* fall through to mock */
+    /* fall through */
   }
-  return { kind: 'mock' }
+  return { url: '/bench' }
 }
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`
 }
 
-/** Starter layout: one page per console mode, seeded with sensible widgets. */
+/** Starter layout: Elliot's tab set, shipped EMPTY on purpose — these are
+ *  placeholders. Every dashboard is built by the operator from the widget
+ *  palette in Edit mode. The library is the product; the pages are canvases. */
 export function defaultLayout(): LayoutDoc {
-  const w = (type: string, config: Record<string, unknown> = {}, span: 1 | 2 = 1): WidgetInstance => ({
-    id: uid('w'),
-    type,
-    span,
-    visible: true,
-    config,
-  })
+  const page = (label: string, icon: string): PageDef => ({ id: uid('p'), label, icon, widgets: [] })
   return {
     version: 1,
-    name: 'Default console',
-    pages: [
-      {
-        id: uid('p'),
-        label: 'Fleet',
-        icon: '🌳',
-        widgets: [
-          w('stat-tile', { metric: 'alive' }),
-          w('stat-tile', { metric: 'avgSoc' }),
-          w('fleet-census', {}, 2),
-        ],
-      },
-      {
-        id: uid('p'),
-        label: 'Power',
-        icon: '🔋',
-        widgets: [w('stat-tile', { metric: 'charging' }), w('stat-tile', { metric: 'lowSoc' }), w('battery-gauge', {}, 2)],
-      },
-      {
-        id: uid('p'),
-        label: 'Flash',
-        icon: '⚡',
-        widgets: [w('state-chips', {}, 2), w('hold-countdown', {}, 2)],
-      },
-      {
-        id: uid('p'),
-        label: 'Locate',
-        icon: '📍',
-        widgets: [w('identify', {}, 2), w('rssi-signal', {}, 2), w('command-log', {}, 2)],
-      },
-    ],
+    name: 'Console',
+    pages: [page('Locate', '🔎'), page('Command', '🎛'), page('Lightshow', '🎬'), page('Settings', '⚙️')],
   }
 }
 
@@ -117,7 +88,7 @@ interface MirrorStore {
   commandLog: { at: number; cmd: MirrorCommand }[]
 
   setDataSource: (s: DataSource) => void
-  pinSeat: (id: string, x: number, y: number) => void
+  pinSeat: (id: string, x: number, y: number, slot?: string) => void
   unpinSeat: (id: string) => void
 
   setActivePage: (id: string) => void
@@ -157,9 +128,9 @@ export const useMirror = create<MirrorStore>((set) => ({
   seats: loadSeats(),
   commandLog: [],
 
-  pinSeat: (id, x, y) =>
+  pinSeat: (id, x, y, slot) =>
     set((s) => {
-      const seats = { ...s.seats, [id]: { x, y } }
+      const seats = { ...s.seats, [id]: slot ? { x, y, slot } : { x, y } }
       try {
         localStorage.setItem(SEATS_KEY, JSON.stringify(seats))
       } catch {

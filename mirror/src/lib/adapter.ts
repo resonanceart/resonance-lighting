@@ -49,7 +49,9 @@ export function mapState(json: unknown): Telemetry {
   const peers = (root.peers ?? {}) as Record<string, PeerRow>
   return {
     now: Date.now(),
-    listenWindowS: 120,
+    // Must match the widgets' alive filter (lastHeardMs < 60s) — the census
+    // line cites this number, and a mismatched citation is a small lie.
+    listenWindowS: 60,
     fixtures: Object.entries(peers).map(([id, row]) => mapPeer(id, row)),
   }
 }
