@@ -184,6 +184,7 @@ def poll_ports():
                 STATE["ports"][dev] = {
                     "present": True, "first_seen": now, "last_change": now,
                     "excluded": False, "flash_requested": ambush,
+                    "auto_attempted": ambush,
                 }
                 if ambush:
                     STATE["ports"][dev]["pinned_at"] = now
@@ -195,11 +196,16 @@ def poll_ports():
                 # same jack — the old verdict/identity must not carry over
                 STATE["results"].pop(dev, None)
                 p.pop("usb", None)
-                p.pop("auto_attempted", None)
                 if ambush:
-                    p["flash_requested"] = True
-                    p["pinned_at"] = now
-                    pin_port(dev)
+                    # one ambush upload per port: a ROM-parked board re-presents
+                    # endlessly and got 3 identical uploads before this guard
+                    if not p.get("auto_attempted"):
+                        p["flash_requested"] = True
+                        p["auto_attempted"] = True
+                        p["pinned_at"] = now
+                        pin_port(dev)
+                else:
+                    p.pop("auto_attempted", None)
         for dev, p in STATE["ports"].items():
             if p["present"] and dev not in seen:
                 p["present"] = False
