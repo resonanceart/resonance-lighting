@@ -709,11 +709,11 @@ padding:26px;text-align:center}
   </div>
  </div>
 </div>
+<h2>Resonance Fleet <span class="kv" id="fleet-count" style="display:inline"></span></h2>
+<div class="cards" id="fleet"></div>
 <h2>Plugged in now</h2>
 <div class="cards" id="cards"></div>
 <div id="none" class="empty" style="display:none">Nothing on USB. Plug a light in — it appears here within a second.</div>
-<h2>Resonance Fleet <span class="kv" id="fleet-count" style="display:inline"></span></h2>
-<div class="cards" id="fleet"></div>
 <h2>Successfully flashed</h2>
 <div class="cards" id="hist"></div>
 <p class="note"><b>THE UNIVERSAL FLASH PROTOCOL</b> — works regardless of board state:<br>
