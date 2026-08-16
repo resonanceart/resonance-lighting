@@ -163,25 +163,33 @@ static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t now) {
   // senses movement"): a confident ToF target within 1.2 m makes the light
   // glow its signature color while the visitor is there. Purely local —
   // works unplugged and out of WiFi range; any commanded lease overrides.
+  // MOTION TELL (Elliot 2026-08-15 Day Zero: "blink green twice when he
+  // detects motion"): edge-triggered on presence onset — one green
+  // double-blink per new detection, re-armed once the target leaves, so a
+  // person standing under the light doesn't strobe it.
   const SensorSnapshot &sn = sensors();
   bool present = (sn.tmfOk && sn.tofDepthMm > 0 && sn.tofDepthMm < 1200) ||
                  (sn.vlOk && sn.vlClosestMm > 0 && sn.vlClosestMm < 1200);
-  if (present) {
-    uint8_t h = (uint8_t)((gMyId[0] * 7 + gMyId[1] * 13 + gMyId[2] * 31) % 12);
-    for (uint16_t i = 0; i < f.count; i++) {
-      f.px[i][0] = PAL[h][0];
-      f.px[i][1] = PAL[h][1];
-      f.px[i][2] = PAL[h][2];
+  static bool sWasPresent = false;
+  static uint32_t sMotionBlinkMs = 0;
+  if (present && !sWasPresent) sMotionBlinkMs = now ? now : 1;
+  sWasPresent = present;
+  if (sMotionBlinkMs && now - sMotionBlinkMs < 600) {
+    uint32_t mp = now - sMotionBlinkMs;
+    if (mp < 200 || mp >= 400) {
+      for (uint16_t i = 0; i < f.count; i++) f.px[i][1] = 255;
+    } else {
+      for (uint16_t i = 0; i < f.count; i++) f.px[i][0] = 24;
     }
     return;
   }
-  if (now % 10000 < 300) {
-    uint8_t h = (uint8_t)((gMyId[0] * 7 + gMyId[1] * 13 + gMyId[2] * 31) % 12);
-    for (uint16_t i = 0; i < f.count; i++) {
-      f.px[i][0] = PAL[h][0];
-      f.px[i][1] = PAL[h][1];
-      f.px[i][2] = PAL[h][2]; // full-bright: the signature must be identifiable across the room
-    }
+  // DEPLOYED HEARTBEAT (Elliot 2026-08-15: unplugged = "go dim red, then
+  // after ten seconds it should blink blue twice... keep doing that so we
+  // know it is working"): dim-red idle with a blue double-blink every 10 s.
+  // 200 ms on/off windows so the 100 ms render cadence catches every edge.
+  uint32_t phase = now % 10000;
+  if (phase < 200 || (phase >= 400 && phase < 600)) {
+    for (uint16_t i = 0; i < f.count; i++) f.px[i][2] = 255;
   } else {
     for (uint16_t i = 0; i < f.count; i++) f.px[i][0] = 24;
   }
