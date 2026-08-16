@@ -32,6 +32,7 @@ fixtures: tap a card's "bridge" toggle to exclude it from the counts.
 import argparse
 import glob
 import json
+import os
 import re
 import subprocess
 import threading
@@ -42,10 +43,52 @@ LOCK = threading.Lock()
 STATE = {
     "ports": {},      # dev path -> {present, first_seen, last_change, excluded}
     "results": {},    # dev path -> latest commission row summary
-    "history": [],    # unplugged ports, most recent first
+    "history": [],    # flashed-then-unplugged sessions (internal)
+    "roster": {},     # fixture_id -> durable flashed-light ledger (persisted)
 }
-CFG = {"jsonl": None, "expect": 12, "dev_glob": "/dev/cu.usbmodem*", "hold_s": 90}
+CFG = {"jsonl": None, "expect": 12, "dev_glob": "/dev/cu.usbmodem*", "hold_s": 90,
+       "roster": None}
 _jsonl_offset = 0
+
+
+def load_roster():
+    try:
+        with open(CFG["roster"], "r", encoding="utf-8") as f:
+            STATE["roster"] = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        STATE["roster"] = {}
+
+
+def save_roster():
+    tmp = CFG["roster"] + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(STATE["roster"], f, indent=1, sort_keys=True)
+    os.replace(tmp, CFG["roster"])
+
+
+def roster_update(dev, summ):
+    """Durable ledger of every flashed light — MAC, fixture id, verdict, fw.
+
+    Survives restarts (Elliot: 'keep track of which lights you flashed, the
+    MAC addresses'). PASS is sticky: a later FAIL row for the same fixture
+    does not erase a recorded PASS, it flags last_verdict instead.
+    """
+    if summ["verdict"] not in ("PASS", "FAIL"):
+        return
+    key = summ.get("fixture_id") or summ.get("mac")
+    if not key:
+        return
+    e = STATE["roster"].get(key, {})
+    first_pass = e.get("first_pass_at")
+    if summ["verdict"] == "PASS" and not first_pass:
+        first_pass = summ.get("row_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    STATE["roster"][key] = {
+        "fixture_id": summ.get("fixture_id"), "mac": summ.get("mac"),
+        "fw": summ.get("fw"), "last_verdict": summ["verdict"],
+        "flashed": bool(first_pass), "first_pass_at": first_pass,
+        "last_port": dev, "last_row_at": summ.get("row_at"),
+    }
+    save_roster()
 
 
 def poll_ports():
@@ -66,10 +109,14 @@ def poll_ports():
             if p["present"] and dev not in seen:
                 p["present"] = False
                 p["last_change"] = now
-                STATE["history"].insert(0, {
-                    "dev": dev, "at": now,
-                    "result": STATE["results"].get(dev),
-                })
+                # History is the FLASH record, not a plug/unplug diary (Elliot,
+                # 08-16): an unflashed light that leaves the bench just vanishes.
+                if STATE["results"].get(dev) is not None:
+                    STATE["history"].insert(0, {
+                        "dev": dev, "at": now,
+                        "result": STATE["results"].get(dev),
+                        "usb": p.get("usb"),
+                    })
 
 
 def usb_snapshot():
@@ -182,7 +229,9 @@ def poll_jsonl():
         if not dev:
             continue
         with LOCK:
-            STATE["results"][dev] = summarize_row(row)
+            summ = summarize_row(row)
+            STATE["results"][dev] = summ
+            roster_update(dev, summ)
             # a result proves the port was real even if enumeration missed it
             if dev not in STATE["ports"]:
                 now = time.time()
@@ -256,77 +305,74 @@ padding:26px;text-align:center}
 <h1>Flash Station <span class="mono" style="color:var(--muted);font-weight:400" id="src"></span></h1>
 <div class="stats">
  <div class="stat"><b id="n-conn">0</b><span>plugged in now</span></div>
- <div class="stat"><b id="n-pass">0</b><span id="lbl-pass">flashed PASS / 12</span></div>
+ <div class="stat"><b id="n-pass">0</b><span id="lbl-pass">flashed ✓ / 12</span></div>
  <div class="stat"><b id="n-fail">0</b><span>failed</span></div>
- <div class="stat"><b id="n-gone">0</b><span>unplugged</span></div>
 </div>
+<h2>Plugged in now</h2>
 <div class="cards" id="cards"></div>
-<div id="none" class="empty" style="display:none">No fixtures on USB. Plug one in — it appears here within a second.</div>
-<h2>Unplugged history</h2>
+<div id="none" class="empty" style="display:none">Nothing on USB. Plug a light in — it appears here within a second.</div>
+<h2>Successfully flashed</h2>
 <div class="cards" id="hist"></div>
 <p class="note">Port presence only — this page never opens a serial port, so it cannot reset a chip mid-flash. PASS comes from the batch tool's evidence JSONL. Per Ben's handoff: a PASS is <b>not</b> proof the PROTECT latch released — each PASS card counts down a 90&nbsp;s USB hold, then check for <b>steady red</b> (shut down any bridge first). The CoreS3 bridge shares the fixture's USB identity: mark it with the <b>bridge?</b> toggle so it doesn't count toward the 12.</p>
 <script>
 const HOLD = %%HOLD%%;
 let excluded = {};
 function fmtAge(s){ if(s<60) return Math.floor(s)+"s"; if(s<3600) return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h"; }
-function card(dev,p,r,gone){
-  const cls = gone? "gone" : r? r.verdict.toLowerCase() : "connected";
-  const chip = gone? "UNPLUGGED" : r? r.verdict : "CONNECTED";
+function liveCard(dev,p,r){
+  const cls = r? r.verdict.toLowerCase() : "connected";
+  const chip = r? r.verdict : "CONNECTED";
   let kv = "";
+  if(p.usb){
+    kv += `<div class="kv">light <b class="mono">${p.usb.fixture_hint||"?"}</b> · mac <span class="mono">${p.usb.serial||"?"}</span></div>`;
+  } else if(p.usb === null){
+    kv += `<div class="kv" style="color:var(--amber)">⚠ no USB hardware behind this port — stale entry; replug or ignore</div>`;
+  }
   if(r){
-    kv += `<div class="kv">fixture <b class="mono">${r.fixture_id||"?"}</b> · mac <span class="mono">${r.mac||"?"}</span></div>`;
     kv += `<div class="kv">fw <b class="mono">${r.fw||"?"}</b></div>`;
     const c = r.checks||{};
     const f = k => c[k]===true? "✓" : c[k]===false? "✗" : "–";
     kv += `<div class="kv mono">preflight ${f("preflight")} · upload ${f("upload")} · serial ${f("serial_verify")} · wifi ${f("wifi_verify")}</div>`;
-    if(!gone && r.verdict==="PASS"){
+    if(r.verdict==="PASS"){
       const left = Math.max(0, HOLD - (Date.now()/1000 - r.seen_at));
       kv += left>0
         ? `<div class="hold">⏳ keep USB attached — ${Math.ceil(left)}s hold remaining, then check steady red</div>`
         : `<div class="hold ok">✓ hold elapsed — verify steady red (no bridge running), then unplug</div>`;
     }
-  } else if(!gone){
-    kv = `<div class="kv">waiting for the batch tool's evidence row…</div>`;
+  } else {
+    kv += `<div class="kv">waiting for the flash tool…</div>`;
   }
-  if(!gone){
-    if(p.usb){
-      kv = `<div class="kv">on USB: <b class="mono">${p.usb.fixture_hint||"?"}</b> · ${p.usb.mfr||""} ${p.usb.name||""} <span class="mono">${p.usb.serial||""}</span></div>` + kv;
-    } else if(p.usb === null){
-      kv = `<div class="kv" style="color:var(--amber)">⚠ no USB hardware behind this port — stale entry; replug or ignore</div>` + kv;
-    }
-  }
-  const age = fmtAge(Date.now()/1000 - (gone? p.at : p.last_change||p.first_seen));
+  const age = fmtAge(Date.now()/1000 - (p.last_change||p.first_seen));
   const ex = excluded[dev] ? "true":"false";
-  const exbtn = gone? "" : `<button class="ex" aria-pressed="${ex}" onclick="tog('${dev}')">bridge?</button>`;
-  return `<div class="cardp ${cls}">${exbtn}<h3>${dev.split("/").pop().replace(/^cu\\./,"")}</h3>
-    <span class="chip ${cls}">${chip}</span> <span class="kv" style="display:inline">${gone?"removed":"for"} ${age}${gone?" ago":""}</span>${kv}</div>`;
+  return `<div class="cardp ${cls}"><button class="ex" aria-pressed="${ex}" onclick="tog('${dev}')">bridge?</button><h3>${dev.split("/").pop().replace(/^cu\\./,"")}</h3>
+    <span class="chip ${cls}">${chip}</span> <span class="kv" style="display:inline">for ${age}</span>${kv}</div>`;
 }
 function tog(dev){ excluded[dev]=!excluded[dev]; tick(); }
 async function tick(){
   try{
     const s = await (await fetch("/state")).json();
     document.getElementById("src").textContent = s.jsonl ? " · " + s.jsonl.split("/").pop() : "";
-    document.getElementById("lbl-pass").textContent = "flashed PASS / " + s.expect;
-    let conn=0, pass=0, fail=0, html="";
+    document.getElementById("lbl-pass").textContent = "flashed ✓ / " + s.expect;
+    let conn=0, html="";
     for(const [dev,p] of Object.entries(s.ports)){
       if(!p.present) continue;
-      const r = s.results[dev];
-      if(!excluded[dev]){ conn++; if(r&&r.verdict==="PASS") pass++; if(r&&r.verdict==="FAIL") fail++; }
-      html += card(dev,p,r,false);
+      if(!excluded[dev]) conn++;
+      html += liveCard(dev,p,s.results[dev]);
     }
-    // count passes from history too (flashed then unplugged = done)
-    let hh="";
-    for(const h of s.history.slice(0,24)){
-      if(h.result && h.result.verdict==="PASS" && !excluded[h.dev]) pass++;
-      hh += card(h.dev,h,h.result,true);
+    let pass=0, fail=0, fh="";
+    const entries = Object.entries(s.roster||{}).sort((a,b)=> (b[1].first_pass_at||"").localeCompare(a[1].first_pass_at||""));
+    for(const [k,e] of entries){
+      if(e.flashed) pass++; else fail++;
+      const cls = e.flashed? "pass" : "fail";
+      fh += `<div class="cardp ${cls}"><h3>${e.fixture_id||k}</h3><span class="chip ${cls}">${e.flashed?"FLASHED ✓":"FAILED"}</span>
+        <div class="kv">mac <b class="mono">${e.mac||"?"}</b></div>
+        <div class="kv">fw <span class="mono">${e.fw||"?"}</span>${e.first_pass_at? " · "+e.first_pass_at.slice(11,16)+"Z":""}</div></div>`;
     }
     document.getElementById("n-conn").textContent = conn;
     document.getElementById("n-pass").textContent = pass;
     document.getElementById("n-fail").textContent = fail;
-    document.getElementById("n-gone").textContent = s.history.length;
     document.getElementById("cards").innerHTML = html;
     document.getElementById("none").style.display = html? "none":"block";
-    document.getElementById("hist").innerHTML = hh || '<div class="empty" style="grid-column:1/-1">nothing unplugged yet</div>';
+    document.getElementById("hist").innerHTML = fh || '<div class="empty" style="grid-column:1/-1">no lights flashed yet — every verified flash lands here with its MAC, permanently</div>';
   }catch(e){ /* server briefly away; keep last render */ }
 }
 setInterval(tick, 1000); tick();
@@ -352,7 +398,7 @@ class Handler(BaseHTTPRequestHandler):
                 payload = {
                     "ports": STATE["ports"],
                     "results": STATE["results"],
-                    "history": STATE["history"][:50],
+                    "roster": STATE["roster"],
                     "expect": CFG["expect"],
                     "jsonl": CFG["jsonl"],
                 }
@@ -372,8 +418,14 @@ def main():
                     help="port pattern to watch (override for testing)")
     ap.add_argument("--hold-s", type=int, default=90,
                     help="post-PASS keep-USB-attached hold, seconds (handoff says 90)")
+    ap.add_argument("--roster", default=os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "ops", "bench", "data", "usb", "flash-roster-elliot.json"),
+        help="durable ledger of flashed lights (MAC, fixture id, verdict); survives restarts")
     args = ap.parse_args()
-    CFG.update(jsonl=args.jsonl, expect=args.expect, dev_glob=args.dev_glob, hold_s=args.hold_s)
+    CFG.update(jsonl=args.jsonl, expect=args.expect, dev_glob=args.dev_glob,
+               hold_s=args.hold_s, roster=os.path.abspath(args.roster))
+    load_roster()
 
     threading.Thread(target=watcher, daemon=True).start()
     srv = ThreadingHTTPServer((args.bind, args.http_port), Handler)
