@@ -56,7 +56,10 @@ _jsonl_offset = 0
 # Auto-flash: OFF until the operator arms it from the page with a battery size.
 # Never flashes a known bridge or a fixture already recorded as flashed.
 KNOWN_BRIDGES = {"E39F1C", "4D5DB0"}  # CoreS3 bridges share the fixture VID/PID
-AUTO = {"armed_mah": 0, "batch": None, "last_note": "disarmed"}
+AUTO = {"armed_mah": 0, "batch": None, "last_note": "disarmed",
+        "ambush_until": 0.0}  # while set: pounce on ANY appearing port (sleepers
+                              # wake USB ~9 s per ~15 min; esptool connect pins
+                              # them in ROM). Do NOT plug a bridge while armed.
 
 
 def autoflash_tick():
@@ -81,10 +84,12 @@ def autoflash_tick():
             if not p.get("flash_requested"):
                 continue  # THE GATE: only Elliot's button click sets this
             usb = p.get("usb")
-            if not usb or not usb.get("fixture_hint"):
-                continue  # wait until the hardware cross-check identifies it
-            if usb["fixture_hint"] in KNOWN_BRIDGES:
+            hint = (usb or {}).get("fixture_hint")
+            if hint in KNOWN_BRIDGES:
                 continue
+            if not hint and not (time.time() < AUTO.get("ambush_until", 0)):
+                continue  # normally wait for identity; AMBUSH can't afford to —
+                          # the wake window is ~9 s and esptool must connect first
             ready.append(dev)
         if not ready:
             return
@@ -158,12 +163,13 @@ def poll_ports():
     now = time.time()
     seen = set(glob.glob(CFG["dev_glob"]))
     with LOCK:
+        ambush = time.time() < AUTO.get("ambush_until", 0)
         for dev in seen:
             p = STATE["ports"].get(dev)
             if p is None:
                 STATE["ports"][dev] = {
                     "present": True, "first_seen": now, "last_change": now,
-                    "excluded": False,
+                    "excluded": False, "flash_requested": ambush,
                 }
             elif not p["present"]:
                 p["present"] = True
@@ -173,6 +179,8 @@ def poll_ports():
                 STATE["results"].pop(dev, None)
                 p.pop("usb", None)
                 p.pop("auto_attempted", None)
+                if ambush:
+                    p["flash_requested"] = True
         for dev, p in STATE["ports"].items():
             if p["present"] and dev not in seen:
                 p["present"] = False
@@ -607,6 +615,8 @@ padding:26px;text-align:center}
   <div style="margin-top:6px;display:flex;gap:6px">
    <button class="ex" onclick="arm(15000)">battery: 15 Ah</button>
    <button class="ex" onclick="arm(6000)">battery: 6 Ah</button>
+   <button class="ex" onclick="ambush(20)">🪤 ambush 20m</button>
+   <button class="ex" onclick="ambush(0)">disarm</button>
   </div>
  </div>
 </div>
@@ -627,6 +637,7 @@ let s_roster = {};
 let s_checkups = {};
 async function doflash(dev){ await fetch("/flash",{method:"POST",body:JSON.stringify({dev})}); tick(); }
 async function docheck(dev){ await fetch("/checkup",{method:"POST",body:JSON.stringify({dev})}); tick(); }
+async function ambush(min){ await fetch("/ambush",{method:"POST",body:String(min)}); tick(); }
 function liveCard(dev,p,r){
   const flashing = p.flashing && !r;
   const cls = r? r.verdict.toLowerCase() : flashing? "partial" : "connected";
@@ -776,6 +787,17 @@ class Handler(BaseHTTPRequestHandler):
             AUTO["armed_mah"] = n if n in (6000, 15000) else 0
             AUTO["last_note"] = f"battery size: {(AUTO['armed_mah'] or 15000)} mAh — flash fires only on a card's ⚡ button"
             self._send(json.dumps({"armed_mah": AUTO["armed_mah"]}), "application/json")
+        elif self.path.startswith("/ambush"):
+            try:
+                mins = int(self.rfile.read(int(self.headers.get("Content-Length", 0))
+                                           ).decode() or "0")
+            except ValueError:
+                mins = 0
+            AUTO["ambush_until"] = time.time() + mins * 60 if mins > 0 else 0.0
+            AUTO["last_note"] = (f"🪤 AMBUSH armed {mins} min — any appearing port gets "
+                                 f"flashed instantly. DO NOT plug the bridge."
+                                 if mins > 0 else "ambush disarmed")
+            self._send(json.dumps({"ambush_min": mins}), "application/json")
         elif self.path.startswith("/checkup"):
             try:
                 body = json.loads(self.rfile.read(
