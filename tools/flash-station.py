@@ -605,10 +605,14 @@ async function tick(){
       html += liveCard(dev,p,s.results[dev]);
     }
     let pass=0, fail=0, fh="";
-    const entries = Object.entries(s.roster||{}).sort((a,b)=> (b[1].first_pass_at||"").localeCompare(a[1].first_pass_at||""));
+    // flash order: oldest first, numbered — the sequence the batch happened in
+    const entries = Object.entries(s.roster||{}).sort((a,b)=> (a[1].first_pass_at||"9999").localeCompare(b[1].first_pass_at||"9999"));
+    let seq = 0;
     for(const [k,e] of entries){
       if(e.flashed) pass++; else fail++;
       const cls = e.flashed? "pass" : "fail";
+      const n = e.flashed? ++seq : null;
+      const when = e.first_pass_at? new Date(e.first_pass_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) : null;
       const m = (s.mesh||{})[k];
       const fresh = m && (Date.now()/1000 - m.heard_at) < 30;
       let mesh = "";
@@ -617,9 +621,9 @@ async function tick(){
       } else if(m){
         mesh = `<div class="kv">last mesh contact ${fmtAge(Date.now()/1000-m.heard_at)} ago</div>`;
       }
-      fh += `<div class="cardp ${cls}"><h3>${e.fixture_id||k}</h3><span class="chip ${cls}">${e.flashed?"FLASHED ✓":"FAILED"}</span>
+      fh += `<div class="cardp ${cls}"><h3>${n? "#"+n+" · ":""}${e.fixture_id||k}</h3><span class="chip ${cls}">${e.flashed?"FLASHED ✓":"FAILED"}</span>${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}
         <div class="kv">mac <b class="mono">${e.mac||"?"}</b></div>
-        <div class="kv">flashed fw <span class="mono">${e.fw||"?"}</span>${e.first_pass_at? " · "+e.first_pass_at.slice(11,16)+"Z":""}</div>${mesh}</div>`;
+        <div class="kv">flashed fw <span class="mono">${e.fw||"?"}</span></div>${mesh}</div>`;
     }
     const br = s.bridge||{};
     if(br.port){
