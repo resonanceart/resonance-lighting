@@ -5,5 +5,5 @@
 // <sketch>-<yyyy-mm-dd>.<n>).
 #pragma once
 
-#define RES_FIXTURE_VERSION "fixture-2026-08-15.7"
+#define RES_FIXTURE_VERSION "fixture-2026-08-16.1"
 #define RES_BOARD_NAME "powerfeather_v2"

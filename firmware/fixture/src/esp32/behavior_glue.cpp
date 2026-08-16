@@ -177,9 +177,13 @@ static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t now) {
     }
     return;
   }
-  if (supplyGood() && now < 3600000UL) { // full bench hour (Elliot: "red green blue until we unplug it, continuously")
-    uint8_t c = (uint8_t)((since / 900) % 3);
-    for (uint16_t i = 0; i < f.count; i++) f.px[i][c] = 255;
+  // Day Zero v4 (Elliot 2026-08-16: "all the lights that are plugged in
+  // blink red"): external power = full-red 500 ms blink. Replaces the RGB
+  // carousel as the standing plugged-in state; unplug ends it instantly.
+  if (supplyGood() && now < 3600000UL) {
+    if ((now / 500) % 2 == 0) {
+      for (uint16_t i = 0; i < f.count; i++) f.px[i][0] = 255;
+    }
     return;
   }
   if (since < 4500) {
