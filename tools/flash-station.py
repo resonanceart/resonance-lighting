@@ -50,7 +50,18 @@ STATE = {
     "bridge": {"port": None, "mode": None, "last_rx": 0},
 }
 CFG = {"jsonl": None, "expect": 12, "dev_glob": "/dev/cu.usbmodem*", "hold_s": 90,
-       "roster": None, "rescue_dir": None, "shim": None}
+       "roster": None, "rescue_dir": None, "shim": None, "esptool": None}
+
+
+def pin_port(dev):
+    """Trap a just-woken chip in the ROM bootloader (Ben's `revive` move).
+    esptool connect + `--after no-reset` leaves it parked in ROM, where it
+    CANNOT sleep — so it survives waiting in the flash queue indefinitely."""
+    if not CFG["esptool"]:
+        return
+    subprocess.Popen([CFG["esptool"], "--port", dev, "--after", "no-reset",
+                      "--connect-attempts", "8", "flash-id"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 _jsonl_offset = 0
 
 # Auto-flash: OFF until the operator arms it from the page with a battery size.
@@ -90,6 +101,9 @@ def autoflash_tick():
             if not hint and not (time.time() < AUTO.get("ambush_until", 0)):
                 continue  # normally wait for identity; AMBUSH can't afford to —
                           # the wake window is ~9 s and esptool must connect first
+            if now - p.get("pinned_at", 0) < 10:
+                continue  # let the pin finish + release the port; chip is
+                          # parked in ROM and cannot escape while it waits
             ready.append(dev)
         if not ready:
             return
@@ -171,6 +185,9 @@ def poll_ports():
                     "present": True, "first_seen": now, "last_change": now,
                     "excluded": False, "flash_requested": ambush,
                 }
+                if ambush:
+                    STATE["ports"][dev]["pinned_at"] = now
+                    pin_port(dev)
             elif not p["present"]:
                 p["present"] = True
                 p["last_change"] = now
@@ -181,6 +198,8 @@ def poll_ports():
                 p.pop("auto_attempted", None)
                 if ambush:
                     p["flash_requested"] = True
+                    p["pinned_at"] = now
+                    pin_port(dev)
         for dev, p in STATE["ports"].items():
             if p["present"] and dev not in seen:
                 p["present"] = False
@@ -880,6 +899,9 @@ def main():
         "..", "ops", "bench", "data", "usb", "flash-roster-elliot.json"),
         help="durable ledger of flashed lights (MAC, fixture id, verdict); survives restarts")
     args = ap.parse_args()
+    et = sorted(glob.glob(os.path.expanduser(
+        "~/Library/Arduino15/packages/esp32/tools/esptool_py/*/esptool")))
+    CFG["esptool"] = et[-1] if et else None
     rescue = os.path.abspath(os.path.expanduser(args.rescue_dir))
     shim = os.path.join(os.path.dirname(os.path.abspath(__file__)), "usb-bringup-mac.py")
     CFG.update(jsonl=os.path.abspath(os.path.expanduser(args.jsonl)) if args.jsonl else None,
