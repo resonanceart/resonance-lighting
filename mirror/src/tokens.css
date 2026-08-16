@@ -1,0 +1,58 @@
+/* Resonance Mirror design tokens — night-navy scheme.
+   Source of truth: the controller app literals + flash-station restyle
+   (#07090c/#121a26/#5b8cff/#3ddc97/#ff5b6e/#ffb454). Everything downstream
+   consumes ONLY these vars so a re-theme is a token edit, not a code change. */
+:root {
+  --bg: #07090c;
+  --surface: #121a26;
+  --surface-2: #1a2434;
+  --line: #223048;
+  --ink: #dbe4f0;
+  --muted: #7b8aa3;
+
+  --accent: #5b8cff;
+  --ok: #3ddc97;
+  --danger: #ff5b6e;
+  --warn: #ffb454;
+
+  --accent-dim: #5b8cff33;
+  --ok-dim: #3ddc9733;
+  --danger-dim: #ff5b6e33;
+  --warn-dim: #ffb45433;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --tap: 44px;            /* minimum touch target — non-negotiable */
+  --font: ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  min-height: var(--tap);
+}
+input, select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  min-height: var(--tap);
+  width: 100%;
+}
