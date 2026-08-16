@@ -322,6 +322,63 @@ def maybe_start_bridge():
                 return
 
 
+def run_checkup(dev):
+    """Component health check over the fixture's USB serial `t` verb.
+    Read-only (telemetry request). Stores structured verdicts per fixture."""
+    import serial as pyserial
+    try:
+        s = pyserial.Serial(dev, 115200, timeout=3)
+        time.sleep(0.4)
+        s.reset_input_buffer()
+        s.write(b"t")
+        time.sleep(1.5)
+        raw = s.read(32768).decode("utf-8", "replace")
+        s.close()
+    except Exception as e:
+        return {"error": f"serial: {e!r}"}
+    line = next((l for l in raw.splitlines() if l.strip().startswith("{")), None)
+    if not line:
+        return {"error": "no telemetry reply (board asleep or mid-boot?)"}
+    try:
+        t = json.loads(line)
+    except json.JSONDecodeError:
+        return {"error": "garbled telemetry"}
+
+    def item(label, ok, detail):
+        return {"label": label, "ok": ok, "detail": detail}
+    bv = float(t.get("battery_v") or 0)
+    ma = float(t.get("battery_ma") or 0)
+    checks = [
+        item("firmware", bool(t.get("fw")), f"{t.get('fw')} · ota {t.get('ota_state','?')}"),
+        item("battery", bool(t.get("battery_present")),
+             (f"{bv:.3f} V @ {ma:+.0f} mA · " +
+              ("charging" if ma > 20 else "discharging" if ma < -20 else "idle") +
+              (f" · SoC {t['soc_pct']}%" if t.get("soc_pct") not in (None, 255) else " · gauge n/a"))
+             if t.get("battery_present") else "NOT DETECTED (lead unseated or BMS lockout)",
+        item("charger (BQ25628E)", bool(t.get("supply_good")) and not t.get("bq_fault0"),
+             f"supply {t.get('supply_v')} V / {t.get('supply_ma')} mA · fault0 {t.get('bq_fault0')} · charging_enabled {t.get('charging_enabled')}"),
+        item("LED rail", t.get("led_rail_on") is not None,
+             f"rail {'ON' if t.get('led_rail_on') else 'off'} · guard_stage {t.get('guard_stage')} (color check = human eyes)"),
+        item("radio (ESP-NOW)", bool(t.get("espnow_up")),
+             f"channel {t.get('channel')} · profile {t.get('profile')} · class {t.get('fixture_class')}"),
+        item("motion (MSA311)", None if not t.get("msa311_present") else bool(t.get("msa_read_ok")),
+             f"tilt {t.get('tilt_deg')}° · sway {t.get('sway_env_g')} g" if t.get("msa311_present") else "not fitted on this class"),
+        item("ToF depth (TMF8820)", None if not t.get("tmf8820_present") else bool(t.get("tmf_read_ok")),
+             f"depth {t.get('tof_depth_mm')} mm · conf {t.get('tof_confidence')} · errors {t.get('tmf_errors')}" if t.get("tmf8820_present") else "not fitted on this class"),
+        item("ToF zones (VL53L5CX)", None if not t.get("vl53l5cx_present") else bool(t.get("vl_read_ok")),
+             f"closest {t.get('vl_closest_mm')} mm · zones {t.get('vl_zones')}" if t.get("vl53l5cx_present") else "not fitted on this class"),
+        item("pressure/temp (BMP581)", None if not t.get("bmp581_present") else bool(t.get("bmp_read_ok")),
+             f"{t.get('bmp_temp_c')} °C · {t.get('bmp_pressure_hpa')} hPa" if t.get("bmp581_present") else "not fitted on this class"),
+        item("solenoid gate", None if not t.get("solenoid_enabled") else True,
+             f"strikes {t.get('solenoid_strikes')} · blocked {t.get('solenoid_blocked')} · failsafes {t.get('solenoid_failsafes')}" if t.get("solenoid_enabled") else "disabled/not fitted"),
+        item("memory/flash", (t.get("flash_bytes") or 0) >= 8 * 1024**2,
+             f"flash {round((t.get('flash_bytes') or 0)/1024**2)} MB · psram {round((t.get('psram_bytes') or 0)/1024**2)} MB · heap {t.get('heap_free')}"),
+        item("laser", None, "none fitted — no fixture carries a laser (ToF sensors use internal Class-1 VCSELs)"),
+    ]
+    return {"fixture_id": t.get("fixture_id"), "at": time.time(), "checks": checks,
+            "reset_reason": t.get("reset_reason")}
+
+
 def usb_snapshot():
     """List real USB devices via system_profiler — the honest instrument.
 
@@ -558,7 +615,8 @@ padding:26px;text-align:center}
 <div id="none" class="empty" style="display:none">Nothing on USB. Plug a light in — it appears here within a second.</div>
 <h2>Successfully flashed</h2>
 <div class="cards" id="hist"></div>
-<p class="note">Port presence only — this page never opens a serial port, so it cannot reset a chip mid-flash. PASS comes from the batch tool's evidence JSONL. Per Ben's handoff: a PASS is <b>not</b> proof the PROTECT latch released — each PASS card counts down a 90&nbsp;s USB hold, then check for <b>steady red</b> (shut down any bridge first). The CoreS3 bridge shares the fixture's USB identity: mark it with the <b>bridge?</b> toggle so it doesn't count toward the 12.</p>
+<p class="note"><b>Flash-from-any-state protocol</b> (Ben's failure ladder): ① plug in — an awake board appears here in ~2 s → click its ⚡ button · ② nothing appears = chip asleep/parked: <b>hold BOOT, tap RESET, release BOOT</b> — bootloader can't sleep, board appears and stays · ③ still nothing: swap to a known-good data cable, then a direct Mac port · ④ still nothing: set the board aside — that's a hardware fault, not a flashing problem. After PASS: dark is normal for a parked board — it needs battery ≥3.10 V + 60 s healthy charge, then it reboots itself to <b>steady red</b>. Red = done, unplug.</p>
+<p class="note">PASS comes from the batch tool's evidence JSONL and the light's own report-back (serial + WiFi). The CoreS3 bridge is auto-protected (never flashed) — plug it in anytime for live mesh badges. 🩺 CHECKUP tests each component the board carries: battery, charger, LED rail, radio, motion, ToF, pressure/temp, solenoid. (No fixture carries a laser.)</p>
 <script>
 const HOLD = %%HOLD%%;
 const MY_BOOT = "%%BOOT%%";   // page auto-reloads when the server restarts,
@@ -566,7 +624,9 @@ let reloading = false;        // so UI updates always reach the operator
 let excluded = {};
 function fmtAge(s){ if(s<60) return Math.floor(s)+"s"; if(s<3600) return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h"; }
 let s_roster = {};
+let s_checkups = {};
 async function doflash(dev){ await fetch("/flash",{method:"POST",body:JSON.stringify({dev})}); tick(); }
+async function docheck(dev){ await fetch("/checkup",{method:"POST",body:JSON.stringify({dev})}); tick(); }
 function liveCard(dev,p,r){
   const flashing = p.flashing && !r;
   const cls = r? r.verdict.toLowerCase() : flashing? "partial" : "connected";
@@ -589,10 +649,20 @@ function liveCard(dev,p,r){
     kv += `<div class="hold">⚡ upload in progress — do not unplug</div>`;
   } else if(p.flash_requested){
     kv += `<div class="hold">⚡ queued — starting…</div>`;
-  } else if(p.usb && p.usb.fixture_hint){
+  } else if(!r && p.usb && p.usb.fixture_hint){
+    kv += `<div class="kv">identified — your move</div>`;
+  }
+  if(!flashing && !p.flash_requested && p.usb && p.usb.fixture_hint){
     const done = (s_roster[p.usb.fixture_hint]||{}).flashed;
-    if(done) kv += `<div class="kv" style="color:var(--green)">already flashed ✓ (in roster)</div>`;
-    kv += `<div style="margin-top:8px"><button class="flashbtn" onclick="doflash('${dev}')">${done? "⚡ RE-FLASH" : "⚡ FLASH THIS LIGHT"}</button></div>`;
+    kv += `<div style="margin-top:8px;display:flex;gap:8px"><button class="flashbtn" onclick="doflash('${dev}')">${done? "⚡ RE-FLASH" : "⚡ FLASH THIS LIGHT"}</button><button class="flashbtn" style="background:var(--card);color:var(--accent);border:1px solid var(--accent)" onclick="docheck('${dev}')">🩺 CHECKUP</button></div>`;
+    const cu = (s_checkups||{})[p.usb.fixture_hint];
+    if(cu && cu.checks){
+      kv += `<div class="kv" style="margin-top:8px"><b>components</b> (checked ${fmtAge(Date.now()/1000-cu.at)} ago):</div>`;
+      for(const c of cu.checks){
+        const mark = c.ok===true? "✅" : c.ok===false? "❌" : "▫️";
+        kv += `<div class="kv mono">${mark} ${c.label}: ${c.detail}</div>`;
+      }
+    }
   }
   const age = fmtAge(Date.now()/1000 - (p.last_change||p.first_seen));
   const ex = excluded[dev] ? "true":"false";
@@ -646,6 +716,7 @@ async function tick(){
       document.getElementById("auto-note").textContent = (s.auto.note||"") + " · 🌉 bridge listening (" + (br.mode||"?") + ")";
     }
     s_roster = s.roster||{};
+    s_checkups = s.checkups||{};
     const a = s.auto||{};
     document.getElementById("auto-state").textContent = "MANUAL · " + ((a.armed_mah||15000)/1000) + " Ah";
     document.getElementById("auto-note").textContent = a.note||"flash fires only from a card's ⚡ button";
@@ -688,6 +759,7 @@ class Handler(BaseHTTPRequestHandler):
                     "mesh": STATE["mesh"],
                     "bridge": STATE["bridge"],
                     "server_boot": SERVER_BOOT,
+                    "checkups": STATE.get("checkups", {}),
                 }
             self._send(json.dumps(payload), "application/json")
         else:
@@ -704,6 +776,24 @@ class Handler(BaseHTTPRequestHandler):
             AUTO["armed_mah"] = n if n in (6000, 15000) else 0
             AUTO["last_note"] = f"battery size: {(AUTO['armed_mah'] or 15000)} mAh — flash fires only on a card's ⚡ button"
             self._send(json.dumps({"armed_mah": AUTO["armed_mah"]}), "application/json")
+        elif self.path.startswith("/checkup"):
+            try:
+                body = json.loads(self.rfile.read(
+                    int(self.headers.get("Content-Length", 0))).decode() or "{}")
+                dev = str(body["dev"])
+            except (ValueError, KeyError):
+                self._send('{"ok":false}', "application/json")
+                return
+            p = STATE["ports"].get(dev)
+            if not p or not p["present"] or p.get("flashing"):
+                self._send('{"ok":false,"err":"port not available (absent or flashing)"}',
+                           "application/json")
+                return
+            result = run_checkup(dev)
+            fid = result.get("fixture_id") or (p.get("usb") or {}).get("fixture_hint")
+            if fid:
+                STATE.setdefault("checkups", {})[fid] = result
+            self._send(json.dumps({"ok": "error" not in result, **result}), "application/json")
         elif self.path.startswith("/flash"):
             try:
                 body = json.loads(self.rfile.read(
