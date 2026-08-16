@@ -245,7 +245,8 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
             </span>
           </div>
           <p className="muted small">
-            {sel.soc === 255 ? 'SoC —' : `SoC ${sel.soc}%`} · {sel.battMv} mV · {sel.rssi} dBm · {sel.fwRev}
+            {sel.rssi !== 0 ? `${sel.rssi} dBm · ` : ''}
+            {sel.fwRev}
           </p>
           <div className="row-gap">
             <button className="btn-accent" onClick={() => send({ verb: 'NB_IDENTIFY', target: sel.fixtureId })}>

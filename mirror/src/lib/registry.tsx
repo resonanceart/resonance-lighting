@@ -1,24 +1,23 @@
 import type { ComponentType } from 'react'
 import type { ConfigField, Tier, WidgetDataProps } from './types'
 import { StatTile } from '../widgets/StatTile'
-import { StateChips } from '../widgets/StateChips'
-import { HoldCountdown } from '../widgets/HoldCountdown'
 import { FleetCensus } from '../widgets/FleetCensus'
-import { BatteryGauge } from '../widgets/BatteryGauge'
 import { IdentifyButton } from '../widgets/IdentifyButton'
-import { RssiSignal } from '../widgets/RssiSignal'
-import { ProgramTruth } from '../widgets/ProgramTruth'
 import { CommandLog } from '../widgets/CommandLog'
 import { FeedSettings } from '../widgets/FeedSettings'
 
 /**
- * The widget registry — the Mirror's equivalent of the Network builder's
- * block registry. A widget registers once here and is immediately available
- * in the edit-mode palette; pages reference it by `type` string only.
+ * The widget registry — the Mirror's block registry. A widget registers once
+ * here and is immediately available in the edit-mode palette.
  *
- * v1 fence: only READ and BLINK tier widgets may register. Registering a
- * CONFIG/OPS widget is a build-time error by construction (see assert below),
- * matching the inventory's build-nothing-new line.
+ * SCOPE RULE (Elliot, 2026-08-16): features are pulled in ONE AT A TIME from
+ * Ben's dashboard only. The palette holds exactly what has been deliberately
+ * adopted — nothing anticipatory. (Battery, program truth, RSSI grids, flash
+ * station live in git history; each returns as its own reviewed commit when
+ * its turn comes.)
+ *
+ * v1 fence: only READ and BLINK tier widgets may register — enforced by the
+ * assert below, so the build-nothing-new line is structural.
  */
 
 export interface WidgetDef {
@@ -40,7 +39,7 @@ const DEFS: WidgetDef[] = [
     title: 'Stat tile',
     icon: '▣',
     tier: 'READ',
-    description: 'One number that matters, with label. Pick the metric.',
+    description: 'One number that matters, with label.',
     defaults: { span: 1, config: { metric: 'alive' } },
     configFields: [
       {
@@ -48,10 +47,7 @@ const DEFS: WidgetDef[] = [
         label: 'Metric',
         kind: 'select',
         options: [
-          { value: 'alive', label: 'Fixtures alive (in window)' },
-          { value: 'avgSoc', label: 'Average SoC (gauged only)' },
-          { value: 'charging', label: 'Charging now' },
-          { value: 'lowSoc', label: 'Low battery (<40%)' },
+          { value: 'alive', label: 'Lights heard (in window)' },
           { value: 'stale', label: 'Stale (>60 s unheard)' },
         ],
       },
@@ -59,97 +55,14 @@ const DEFS: WidgetDef[] = [
     component: StatTile,
   },
   {
-    type: 'state-chips',
-    title: 'State-chip cards',
-    icon: '🎛',
-    tier: 'READ',
-    description: 'Flash Station pattern: per-device CONNECTED / PASS / FAIL / UNPLUGGED cards.',
-    defaults: { span: 2, config: { showPort: true } },
-    configFields: [{ key: 'showPort', label: 'Show USB port', kind: 'toggle' }],
-    component: StateChips,
-  },
-  {
-    type: 'hold-countdown',
-    title: 'Hold countdown',
-    icon: '⏱',
-    tier: 'READ',
-    description: 'Flash Station pattern: post-PASS hold timers (do not unplug yet).',
-    defaults: { span: 2, config: { holdS: 90 } },
-    configFields: [{ key: 'holdS', label: 'Hold seconds', kind: 'number', min: 10, max: 300 }],
-    component: HoldCountdown,
-  },
-  {
     type: 'fleet-census',
     title: 'Fleet census',
     icon: '≡',
     tier: 'READ',
-    description: 'Every living light with last-heard honesty windows. Counts always cite the window.',
+    description: 'Every light actually heard, with last-heard honesty windows.',
     defaults: { span: 2, config: { cls: 'all' } },
-    configFields: [
-      {
-        key: 'cls',
-        label: 'Class filter',
-        kind: 'select',
-        options: [
-          { value: 'all', label: 'All classes' },
-          { value: 'downlight', label: 'Downlights' },
-          { value: 'perimeter', label: 'Perimeter' },
-          { value: 'chandelier', label: 'Chandelier' },
-          { value: 'trunk', label: 'Trunk / uplight' },
-        ],
-      },
-    ],
+    configFields: [],
     component: FleetCensus,
-  },
-  {
-    type: 'battery-gauge',
-    title: 'Battery health',
-    icon: '🔋',
-    tier: 'READ',
-    description: 'mV / mA / SoC per light. soc=255 renders as — (no gauge), never 0.',
-    defaults: { span: 2, config: { sort: 'soc' } },
-    configFields: [
-      {
-        key: 'sort',
-        label: 'Sort by',
-        kind: 'select',
-        options: [
-          { value: 'soc', label: 'SoC (worst first)' },
-          { value: 'mv', label: 'Voltage (lowest first)' },
-        ],
-      },
-    ],
-    component: BatteryGauge,
-  },
-  {
-    type: 'rssi-signal',
-    title: 'Signal strength',
-    icon: '📶',
-    tier: 'READ',
-    description: 'Downlink RSSI bars per fixture. Honest: text-mode feeds show none.',
-    defaults: { span: 2, config: { worstFirst: true } },
-    configFields: [{ key: 'worstFirst', label: 'Worst signal first', kind: 'toggle' }],
-    component: RssiSignal,
-  },
-  {
-    type: 'program-truth',
-    title: 'Program truth',
-    icon: '🎬',
-    tier: 'READ',
-    description: 'What the fleet is running, as a distribution. Carries its own staleness caveat.',
-    defaults: { span: 2, config: {} },
-    configFields: [],
-    component: ProgramTruth,
-  },
-  {
-    type: 'command-log',
-    title: 'Command audit trail',
-    icon: '📜',
-    tier: 'READ',
-    description: 'Every command that passed the fence, newest first. Empty = healthy.',
-    defaults: { span: 2, config: {} },
-    configFields: [],
-    component: CommandLog,
   },
   {
     type: 'feed-settings',
@@ -160,6 +73,16 @@ const DEFS: WidgetDef[] = [
     defaults: { span: 2, config: {} },
     configFields: [],
     component: FeedSettings,
+  },
+  {
+    type: 'command-log',
+    title: 'Command audit trail',
+    icon: '📜',
+    tier: 'READ',
+    description: 'Every command that passed the fence, newest first. Empty = healthy.',
+    defaults: { span: 2, config: {} },
+    configFields: [],
+    component: CommandLog,
   },
   {
     type: 'identify',
