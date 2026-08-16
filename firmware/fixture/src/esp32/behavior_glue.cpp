@@ -142,31 +142,13 @@ static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t now) {
   // instantly (supply drops) and the light becomes the deployed red-idle.
   // The 15-min cap keeps a solar-powered field reboot from running the
   // carousel all morning.
-  if (supplyGood() && now < 3600000UL) { // full bench hour (Elliot: "red green blue until we unplug it, continuously")
-    uint8_t c = (uint8_t)((since / 900) % 3);
-    for (uint16_t i = 0; i < f.count; i++) f.px[i][c] = 255;
-    return;
-  }
-  if (since < 4500) {
-    uint8_t c = (uint8_t)(since / 1500); // 0=R 1=G 2=B (battery power-up salute)
-    for (uint16_t i = 0; i < f.count; i++) f.px[i][c > 2 ? 2 : c] = 255;
-    return;
-  }
   static const uint8_t PAL[12][3] = {
       {255, 0, 0},   {255, 96, 0},  {255, 200, 0}, {128, 255, 0},
       {0, 255, 0},   {0, 255, 128}, {0, 255, 255}, {0, 128, 255},
       {0, 0, 255},   {128, 0, 255}, {255, 0, 255}, {255, 0, 128}};
-  // 10 s period, 300 ms, half intensity: ten UNSYNCED lights at 5 s/full
-  // blast read as one continuous strobe across the bench (Elliot 19:30:
-  // "everything is flashing super fast") — calmer cadence, same identity.
-  // PRESENCE REACT (Elliot 2026-08-15: "light changes color whenever it
-  // senses movement"): a confident ToF target within 1.2 m makes the light
-  // glow its signature color while the visitor is there. Purely local —
-  // works unplugged and out of WiFi range; any commanded lease overrides.
-  // MOTION TELL (Elliot 2026-08-15 Day Zero: "blink green twice when he
-  // detects motion"): edge-triggered on presence onset — one green
-  // double-blink per new detection, re-armed once the target leaves, so a
-  // person standing under the light doesn't strobe it.
+  // Day Zero v3 (Elliot 2026-08-15: "get it working" — presence must react
+  // even on the bench): motion tell + presence hold outrank the carousel and
+  // salute, so a plugged, charging light still greets and changes color.
   const SensorSnapshot &sn = sensors();
   bool present = (sn.tmfOk && sn.tofDepthMm > 0 && sn.tofDepthMm < 1200) ||
                  (sn.vlOk && sn.vlClosestMm > 0 && sn.vlClosestMm < 1200);
@@ -195,6 +177,27 @@ static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t now) {
     }
     return;
   }
+  if (supplyGood() && now < 3600000UL) { // full bench hour (Elliot: "red green blue until we unplug it, continuously")
+    uint8_t c = (uint8_t)((since / 900) % 3);
+    for (uint16_t i = 0; i < f.count; i++) f.px[i][c] = 255;
+    return;
+  }
+  if (since < 4500) {
+    uint8_t c = (uint8_t)(since / 1500); // 0=R 1=G 2=B (battery power-up salute)
+    for (uint16_t i = 0; i < f.count; i++) f.px[i][c > 2 ? 2 : c] = 255;
+    return;
+  }
+  // 10 s period, 300 ms, half intensity: ten UNSYNCED lights at 5 s/full
+  // blast read as one continuous strobe across the bench (Elliot 19:30:
+  // "everything is flashing super fast") — calmer cadence, same identity.
+  // PRESENCE REACT (Elliot 2026-08-15: "light changes color whenever it
+  // senses movement"): a confident ToF target within 1.2 m makes the light
+  // glow its signature color while the visitor is there. Purely local —
+  // works unplugged and out of WiFi range; any commanded lease overrides.
+  // MOTION TELL (Elliot 2026-08-15 Day Zero: "blink green twice when he
+  // detects motion"): edge-triggered on presence onset — one green
+  // double-blink per new detection, re-armed once the target leaves, so a
+  // person standing under the light doesn't strobe it.
   // DEPLOYED HEARTBEAT (Elliot 2026-08-15: unplugged = "go dim red, then
   // after ten seconds it should blink blue twice... keep doing that so we
   // know it is working"): dim-red idle with a blue double-blink every 10 s.
