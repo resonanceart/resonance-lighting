@@ -168,6 +168,11 @@ def poll_ports():
             elif not p["present"]:
                 p["present"] = True
                 p["last_change"] = now
+                # a re-appearing port may be a DIFFERENT physical light on the
+                # same jack — the old verdict/identity must not carry over
+                STATE["results"].pop(dev, None)
+                p.pop("usb", None)
+                p.pop("auto_attempted", None)
         for dev, p in STATE["ports"].items():
             if p["present"] and dev not in seen:
                 p["present"] = False
