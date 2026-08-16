@@ -152,6 +152,7 @@ def roster_update(dev, summ):
         "fw": summ.get("fw"), "last_verdict": summ["verdict"],
         "flashed": bool(first_pass), "first_pass_at": first_pass,
         "last_port": dev, "last_row_at": summ.get("row_at"),
+        "name": e.get("name"),  # nicknames survive re-flashes
     }
     save_roster()
 
@@ -593,6 +594,11 @@ function liveCard(dev,p,r){
 }
 function tog(dev){ excluded[dev]=!excluded[dev]; tick(); }
 async function arm(mah){ await fetch("/arm",{method:"POST",body:String(mah)}); tick(); }
+async function rename(fid, cur){
+  const name = prompt("Nickname for "+fid+":", cur||"");
+  if(name===null) return;
+  await fetch("/name",{method:"POST",body:JSON.stringify({fid,name})}); tick();
+}
 async function tick(){
   try{
     const s = await (await fetch("/state")).json();
@@ -621,7 +627,8 @@ async function tick(){
       } else if(m){
         mesh = `<div class="kv">last mesh contact ${fmtAge(Date.now()/1000-m.heard_at)} ago</div>`;
       }
-      fh += `<div class="cardp ${cls}"><h3>${n? "#"+n+" · ":""}${e.fixture_id||k}</h3><span class="chip ${cls}">${e.flashed?"FLASHED ✓":"FAILED"}</span>${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}
+      const title = e.name? `${e.name} <span class="kv mono" style="display:inline">${e.fixture_id||k}</span>` : (e.fixture_id||k);
+      fh += `<div class="cardp ${cls}"><button class="ex" onclick="rename('${k}','${(e.name||"").replace(/'/g,"")}')">✎ name</button><h3>${n? "#"+n+" · ":""}${title}</h3><span class="chip ${cls}">${e.flashed?"FLASHED ✓":"FAILED"}</span>${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}
         <div class="kv">mac <b class="mono">${e.mac||"?"}</b></div>
         <div class="kv">flashed fw <span class="mono">${e.fw||"?"}</span></div>${mesh}</div>`;
     }
@@ -687,6 +694,23 @@ class Handler(BaseHTTPRequestHandler):
             AUTO["last_note"] = (f"ARMED {AUTO['armed_mah']} mAh — plug lights in"
                                  if AUTO["armed_mah"] else "disarmed")
             self._send(json.dumps({"armed_mah": AUTO["armed_mah"]}), "application/json")
+        elif self.path.startswith("/name"):
+            try:
+                body = json.loads(self.rfile.read(
+                    int(self.headers.get("Content-Length", 0))).decode() or "{}")
+                fid, name = str(body["fid"]).upper(), str(body.get("name", "")).strip()[:40]
+            except (ValueError, KeyError):
+                self._send('{"ok":false}', "application/json")
+                return
+            with LOCK:
+                if fid in STATE["roster"]:
+                    STATE["roster"][fid]["name"] = name or None
+                    save_roster()
+                    self._send(json.dumps({"ok": True, "fid": fid, "name": name}),
+                               "application/json")
+                else:
+                    self._send('{"ok":false,"err":"fixture not in roster"}',
+                               "application/json")
         else:
             self._send("{}", "application/json")
 
