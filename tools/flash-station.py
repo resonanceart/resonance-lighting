@@ -615,9 +615,10 @@ async function tick(){
     const entries = Object.entries(s.roster||{}).sort((a,b)=> (a[1].first_pass_at||"9999").localeCompare(b[1].first_pass_at||"9999"));
     let seq = 0;
     for(const [k,e] of entries){
-      if(e.flashed) pass++; else fail++;
-      const cls = e.flashed? "pass" : "fail";
-      const n = e.flashed? ++seq : null;
+      const excluded = e.counted === false;
+      if(e.flashed && !excluded) pass++; else if(!e.flashed) fail++;
+      const cls = excluded? "partial" : e.flashed? "pass" : "fail";
+      const n = (e.flashed && !excluded)? ++seq : null;
       const when = e.first_pass_at? new Date(e.first_pass_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) : null;
       const m = (s.mesh||{})[k];
       const fresh = m && (Date.now()/1000 - m.heard_at) < 30;
@@ -628,7 +629,7 @@ async function tick(){
         mesh = `<div class="kv">last mesh contact ${fmtAge(Date.now()/1000-m.heard_at)} ago</div>`;
       }
       const title = e.name? `${e.name} <span class="kv mono" style="display:inline">${e.fixture_id||k}</span>` : (e.fixture_id||k);
-      fh += `<div class="cardp ${cls}"><button class="ex" onclick="rename('${k}','${(e.name||"").replace(/'/g,"")}')">✎ name</button><h3>${n? "#"+n+" · ":""}${title}</h3><span class="chip ${cls}">${e.flashed?"FLASHED ✓":"FAILED"}</span>${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}
+      fh += `<div class="cardp ${cls}"><button class="ex" onclick="rename('${k}','${(e.name||"").replace(/'/g,"")}')">✎ name</button><h3>${n? "#"+n+" · ":""}${title}</h3><span class="chip ${cls}">${excluded? "SET ASIDE" : e.flashed?"FLASHED ✓":"FAILED"}</span>${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}${excluded&&e.note? `<div class="kv" style="color:var(--amber)">${e.note}</div>`:""}
         <div class="kv">mac <b class="mono">${e.mac||"?"}</b></div>
         <div class="kv">flashed fw <span class="mono">${e.fw||"?"}</span></div>${mesh}</div>`;
     }
