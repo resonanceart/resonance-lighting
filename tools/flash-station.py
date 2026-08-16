@@ -40,6 +40,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOCK = threading.Lock()
+SERVER_BOOT = str(time.time())
 STATE = {
     "ports": {},      # dev path -> {present, first_seen, last_change, excluded}
     "results": {},    # dev path -> latest commission row summary
@@ -563,6 +564,8 @@ padding:26px;text-align:center}
 <p class="note">Port presence only — this page never opens a serial port, so it cannot reset a chip mid-flash. PASS comes from the batch tool's evidence JSONL. Per Ben's handoff: a PASS is <b>not</b> proof the PROTECT latch released — each PASS card counts down a 90&nbsp;s USB hold, then check for <b>steady red</b> (shut down any bridge first). The CoreS3 bridge shares the fixture's USB identity: mark it with the <b>bridge?</b> toggle so it doesn't count toward the 12.</p>
 <script>
 const HOLD = %%HOLD%%;
+const MY_BOOT = "%%BOOT%%";   // page auto-reloads when the server restarts,
+let reloading = false;        // so UI updates always reach the operator
 let excluded = {};
 function fmtAge(s){ if(s<60) return Math.floor(s)+"s"; if(s<3600) return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h"; }
 function liveCard(dev,p,r){
@@ -603,6 +606,7 @@ async function rename(fid, cur){
 async function tick(){
   try{
     const s = await (await fetch("/state")).json();
+    if(s.server_boot && s.server_boot !== MY_BOOT && !reloading){ reloading = true; location.reload(); return; }
     document.getElementById("src").textContent = s.jsonl ? " · " + s.jsonl.split("/").pop() : "";
     document.getElementById("lbl-pass").textContent = "flashed ✓ / " + s.expect;
     let conn=0, html="";
@@ -680,10 +684,12 @@ class Handler(BaseHTTPRequestHandler):
                              "auto_available": bool(CFG["rescue_dir"])},
                     "mesh": STATE["mesh"],
                     "bridge": STATE["bridge"],
+                    "server_boot": SERVER_BOOT,
                 }
             self._send(json.dumps(payload), "application/json")
         else:
-            self._send(PAGE.replace("%%HOLD%%", str(CFG["hold_s"])), "text/html; charset=utf-8")
+            self._send(PAGE.replace("%%HOLD%%", str(CFG["hold_s"]))
+                       .replace("%%BOOT%%", SERVER_BOOT), "text/html; charset=utf-8")
 
     def do_POST(self):
         if self.path.startswith("/arm"):
