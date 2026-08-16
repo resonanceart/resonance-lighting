@@ -183,6 +183,18 @@ static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t now) {
     }
     return;
   }
+  // Day Zero v1 (Elliot 2026-08-15: "respond to presence by changing color"):
+  // after the onset blink, hold this light's signature color for as long as
+  // the visitor is there; leaving returns it to the dim-red heartbeat idle.
+  if (present) {
+    uint8_t h = (uint8_t)((gMyId[0] * 7 + gMyId[1] * 13 + gMyId[2] * 31) % 12);
+    for (uint16_t i = 0; i < f.count; i++) {
+      f.px[i][0] = PAL[h][0];
+      f.px[i][1] = PAL[h][1];
+      f.px[i][2] = PAL[h][2];
+    }
+    return;
+  }
   // DEPLOYED HEARTBEAT (Elliot 2026-08-15: unplugged = "go dim red, then
   // after ten seconds it should blink blue twice... keep doing that so we
   // know it is working"): dim-red idle with a blue double-blink every 10 s.
