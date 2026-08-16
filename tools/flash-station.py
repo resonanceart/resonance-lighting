@@ -60,10 +60,11 @@ AUTO = {"armed_mah": 0, "batch": None, "last_note": "disarmed"}
 
 
 def autoflash_tick():
-    """When armed: debounce newly-seen fixture ports, then run ONE batch
-    commission over all of them (parallel inside Ben's tool — avoids two
-    processes interleaving appends into the same evidence JSONL)."""
-    if not AUTO["armed_mah"] or not CFG["rescue_dir"]:
+    """MANUAL-TRIGGER flasher (Elliot 08-16: 'only when I click a button on
+    the flash station'). Collects ports whose card button was clicked and runs
+    ONE batch commission over them. armed_mah is only the battery-size
+    setting; nothing fires without a per-light click."""
+    if not CFG["rescue_dir"]:
         return
     b = AUTO["batch"]
     if b and b["proc"].poll() is None:
@@ -77,25 +78,19 @@ def autoflash_tick():
         for dev, p in STATE["ports"].items():
             if not p["present"] or p.get("flashing"):
                 continue
+            if not p.get("flash_requested"):
+                continue  # THE GATE: only Elliot's button click sets this
             usb = p.get("usb")
             if not usb or not usb.get("fixture_hint"):
                 continue  # wait until the hardware cross-check identifies it
-            fid = usb["fixture_hint"]
-            if fid in KNOWN_BRIDGES:
+            if usb["fixture_hint"] in KNOWN_BRIDGES:
                 continue
-            entry = STATE["roster"].get(fid)
-            if entry and entry.get("flashed"):
-                continue  # already done — a replugged red light is never re-flashed
-            if p.get("auto_attempted"):
-                continue  # one auto attempt per plug-in; failures need a human eye
-            if now - p.get("last_change", now) < 6:
-                continue  # debounce: let a wave of plugs settle
             ready.append(dev)
         if not ready:
             return
         for dev in ready:
-            STATE["ports"][dev]["auto_attempted"] = True
-    mah = AUTO["armed_mah"]
+            STATE["ports"][dev]["flash_requested"] = False
+    mah = AUTO["armed_mah"] or 15000
     cmd = ["python3", CFG["shim"], "commission",
            "--out", CFG["jsonl"], "--append",
            "--build-path", "firmware/fixture/build/fx-260816-prtrel1-b",
@@ -536,6 +531,9 @@ font-size:.62rem;letter-spacing:.08em;font-weight:600;border-radius:999px;paddin
 .ex{float:right;font-size:.66rem;color:var(--muted);border:1px solid var(--line);
 border-radius:999px;padding:2px 8px;cursor:pointer;background:none;font-family:inherit}
 .ex[aria-pressed="true"]{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+.flashbtn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;
+font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit}
+.flashbtn:hover{filter:brightness(1.15)}
 .note{color:var(--muted);font-size:.78rem;max-width:70ch;margin-top:20px}
 h2{font-size:.95rem;margin:26px 0 8px;color:var(--muted);font-weight:600}
 .empty{color:var(--muted);border:1px dashed var(--line);border-radius:12px;
@@ -547,12 +545,11 @@ padding:26px;text-align:center}
  <div class="stat"><b id="n-conn">0</b><span>plugged in now</span></div>
  <div class="stat"><b id="n-pass">0</b><span id="lbl-pass">flashed ✓ / 12</span></div>
  <div class="stat"><b id="n-fail">0</b><span>failed</span></div>
- <div class="stat" style="min-width:220px"><b id="auto-state" style="font-size:.95rem">AUTO-FLASH OFF</b>
-  <span id="auto-note">plug-ins are watched only</span>
+ <div class="stat" style="min-width:220px"><b id="auto-state" style="font-size:.95rem">MANUAL FLASH</b>
+  <span id="auto-note">flash fires only from a card's ⚡ button</span>
   <div style="margin-top:6px;display:flex;gap:6px">
-   <button class="ex" onclick="arm(15000)">arm 15 Ah</button>
-   <button class="ex" onclick="arm(6000)">arm 6 Ah</button>
-   <button class="ex" onclick="arm(0)">off</button>
+   <button class="ex" onclick="arm(15000)">battery: 15 Ah</button>
+   <button class="ex" onclick="arm(6000)">battery: 6 Ah</button>
   </div>
  </div>
 </div>
@@ -568,6 +565,8 @@ const MY_BOOT = "%%BOOT%%";   // page auto-reloads when the server restarts,
 let reloading = false;        // so UI updates always reach the operator
 let excluded = {};
 function fmtAge(s){ if(s<60) return Math.floor(s)+"s"; if(s<3600) return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h"; }
+let s_roster = {};
+async function doflash(dev){ await fetch("/flash",{method:"POST",body:JSON.stringify({dev})}); tick(); }
 function liveCard(dev,p,r){
   const flashing = p.flashing && !r;
   const cls = r? r.verdict.toLowerCase() : flashing? "partial" : "connected";
@@ -588,8 +587,13 @@ function liveCard(dev,p,r){
     }
   } else if(flashing){
     kv += `<div class="hold">⚡ upload in progress — do not unplug</div>`;
-  } else {
-    kv += `<div class="kv">waiting for the flash tool…</div>`;
+  } else if(p.flash_requested){
+    kv += `<div class="hold">⚡ queued — starting…</div>`;
+  } else if(p.usb && p.usb.fixture_hint){
+    const done = (s_roster[p.usb.fixture_hint]||{}).flashed;
+    kv += done
+      ? `<div class="kv" style="color:var(--green)">already in the flashed roster — will not re-flash</div>`
+      : `<div style="margin-top:8px"><button class="flashbtn" onclick="doflash('${dev}')">⚡ FLASH THIS LIGHT</button></div>`;
   }
   const age = fmtAge(Date.now()/1000 - (p.last_change||p.first_seen));
   const ex = excluded[dev] ? "true":"false";
@@ -642,10 +646,10 @@ async function tick(){
     if(br.port){
       document.getElementById("auto-note").textContent = (s.auto.note||"") + " · 🌉 bridge listening (" + (br.mode||"?") + ")";
     }
+    s_roster = s.roster||{};
     const a = s.auto||{};
-    document.getElementById("auto-state").textContent = a.armed_mah? ("AUTO ⚡ "+(a.armed_mah/1000)+" Ah") : "AUTO-FLASH OFF";
-    document.getElementById("auto-state").style.color = a.armed_mah? "var(--green)" : "";
-    document.getElementById("auto-note").textContent = a.note||"";
+    document.getElementById("auto-state").textContent = "MANUAL · " + ((a.armed_mah||15000)/1000) + " Ah";
+    document.getElementById("auto-note").textContent = a.note||"flash fires only from a card's ⚡ button";
     document.getElementById("n-conn").textContent = conn;
     document.getElementById("n-pass").textContent = pass;
     document.getElementById("n-fail").textContent = fail;
@@ -699,9 +703,23 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 n = 0
             AUTO["armed_mah"] = n if n in (6000, 15000) else 0
-            AUTO["last_note"] = (f"ARMED {AUTO['armed_mah']} mAh — plug lights in"
-                                 if AUTO["armed_mah"] else "disarmed")
+            AUTO["last_note"] = f"battery size: {(AUTO['armed_mah'] or 15000)} mAh — flash fires only on a card's ⚡ button"
             self._send(json.dumps({"armed_mah": AUTO["armed_mah"]}), "application/json")
+        elif self.path.startswith("/flash"):
+            try:
+                body = json.loads(self.rfile.read(
+                    int(self.headers.get("Content-Length", 0))).decode() or "{}")
+                dev = str(body["dev"])
+            except (ValueError, KeyError):
+                self._send('{"ok":false}', "application/json")
+                return
+            with LOCK:
+                p = STATE["ports"].get(dev)
+                ok = bool(p and p["present"]
+                          and (p.get("usb") or {}).get("fixture_hint") not in KNOWN_BRIDGES)
+                if ok:
+                    p["flash_requested"] = True
+            self._send(json.dumps({"ok": ok}), "application/json")
         elif self.path.startswith("/name"):
             try:
                 body = json.loads(self.rfile.read(
