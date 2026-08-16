@@ -48,7 +48,15 @@ export type ConfigField =
   | { key: string; label: string; kind: 'select'; options: { value: string; label: string }[] }
 
 /** Live telemetry snapshot handed to every widget each tick (mock today,
- *  net_bench_dashboard /api/state adapter tomorrow — same shape). */
+ *  net_bench_dashboard /api/state adapter tomorrow — same shape).
+ *
+ *  ADAPTER CONTRACT (PRD: the dashboard's field names are canonical). The
+ *  /api/state per-peer row maps 1:1 onto this view model:
+ *    id → fixtureId · battery_v*1000 → battMv · battery_ma → battMa ·
+ *    soc_pct → soc (255 = no gauge) · rssi_dbm → rssi · dl_pdr*1000 →
+ *    pdrPermille · age_ms → lastHeardMs · firmware_rev → fwRev.
+ *  There is no separate mac field — the id IS the short-MAC fixture id —
+ *  and no last_seen: recency is age_ms + the envelope ts_utc. */
 export interface FixtureState {
   fixtureId: string // last 6 hex of MAC
   cls: 'downlight' | 'perimeter' | 'chandelier' | 'trunk'
