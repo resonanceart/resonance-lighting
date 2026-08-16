@@ -60,6 +60,7 @@ def load_roster():
 
 
 def save_roster():
+    os.makedirs(os.path.dirname(CFG["roster"]), exist_ok=True)
     tmp = CFG["roster"] + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(STATE["roster"], f, indent=1, sort_keys=True)
@@ -150,6 +151,27 @@ def usb_snapshot():
     return found
 
 
+def detect_flashing():
+    """Mark ports whose name appears in a live flasher process's argv.
+
+    Read-only ps scan — arduino-cli / esptool / fleet_usb_bringup keep the
+    port path in argv for the whole upload, so this holds FLASHING from
+    start of upload until the tool exits.
+    """
+    try:
+        out = subprocess.run(["ps", "-axo", "command"],
+                             capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return
+    lines = [l for l in out.splitlines()
+             if re.search(r"esptool|arduino-cli|fleet_usb_bringup", l)
+             and "flash-station" not in l]
+    with LOCK:
+        for dev, p in STATE["ports"].items():
+            base = dev.split("/")[-1]
+            p["flashing"] = any(base in l or dev in l for l in lines)
+
+
 def annotate_usb():
     """Match present ports to real USB devices; derive fixture id from serial."""
     devices = usb_snapshot()
@@ -225,6 +247,8 @@ def poll_jsonl():
             row = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if row.get("event") not in ("commission", "inventory"):
+            continue  # operator_confirm / segment rows are context, not verdicts
         dev = row.get("port")
         if not dev:
             continue
@@ -242,12 +266,20 @@ def poll_jsonl():
 
 
 def watcher():
+    # One exception here froze the whole dashboard at a stale FAIL (2026-08-16,
+    # missing roster dir) — the watcher must survive ANY single-step failure.
     n = 0
     while True:
-        poll_ports()
-        poll_jsonl()
+        for step in (poll_ports, poll_jsonl, detect_flashing):
+            try:
+                step()
+            except Exception as e:
+                print(f"watcher: {step.__name__} failed: {e!r}", flush=True)
         if n % 5 == 0:
-            annotate_usb()  # ~1 s subprocess; every 5th tick is plenty
+            try:
+                annotate_usb()
+            except Exception as e:
+                print(f"watcher: annotate_usb failed: {e!r}", flush=True)
         n += 1
         time.sleep(1.0)
 
@@ -319,8 +351,9 @@ const HOLD = %%HOLD%%;
 let excluded = {};
 function fmtAge(s){ if(s<60) return Math.floor(s)+"s"; if(s<3600) return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h"; }
 function liveCard(dev,p,r){
-  const cls = r? r.verdict.toLowerCase() : "connected";
-  const chip = r? r.verdict : "CONNECTED";
+  const flashing = p.flashing && !r;
+  const cls = r? r.verdict.toLowerCase() : flashing? "partial" : "connected";
+  const chip = r? r.verdict : flashing? "⚡ FLASHING" : "CONNECTED";
   let kv = "";
   if(p.usb){
     kv += `<div class="kv">light <b class="mono">${p.usb.fixture_hint||"?"}</b> · mac <span class="mono">${p.usb.serial||"?"}</span></div>`;
@@ -338,6 +371,8 @@ function liveCard(dev,p,r){
         ? `<div class="hold">⏳ keep USB attached — ${Math.ceil(left)}s hold remaining, then check steady red</div>`
         : `<div class="hold ok">✓ hold elapsed — verify steady red (no bridge running), then unplug</div>`;
     }
+  } else if(flashing){
+    kv += `<div class="hold">⚡ upload in progress — do not unplug</div>`;
   } else {
     kv += `<div class="kv">waiting for the flash tool…</div>`;
   }
