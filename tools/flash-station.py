@@ -680,6 +680,13 @@ let s_checkups = {};
 async function doflash(dev){ await fetch("/flash",{method:"POST",body:JSON.stringify({dev})}); tick(); }
 async function docheck(dev){ await fetch("/checkup",{method:"POST",body:JSON.stringify({dev})}); tick(); }
 async function ambush(min){ await fetch("/ambush",{method:"POST",body:String(min)}); tick(); }
+function excluded_note(e){ return e.counted === false; }
+async function confirmRed(fid){ await fetch("/confirm",{method:"POST",body:JSON.stringify({fid,action:"red"})}); tick(); }
+async function setAside(fid){
+  const note = prompt("Reason for setting "+fid+" aside (e.g. no battery):","");
+  if(note===null) return;
+  await fetch("/confirm",{method:"POST",body:JSON.stringify({fid,action:"aside",note})}); tick();
+}
 function liveCard(dev,p,r){
   const flashing = p.flashing && !r;
   const cls = r? r.verdict.toLowerCase() : flashing? "partial" : "connected";
@@ -760,9 +767,15 @@ async function tick(){
         mesh = `<div class="kv">last mesh contact ${fmtAge(Date.now()/1000-m.heard_at)} ago</div>`;
       }
       const title = e.name? `${e.name} <span class="kv mono" style="display:inline">${e.fixture_id||k}</span>` : (e.fixture_id||k);
-      fh += `<div class="cardp ${cls}"><button class="ex" onclick="rename('${k}','${(e.name||"").replace(/'/g,"")}')">✎ name</button><h3>${n? "#"+n+" · ":""}${title}</h3><span class="chip ${cls}">${excluded? "SET ASIDE" : e.flashed?"FLASHED ✓":"FAILED"}</span>${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}${excluded&&e.note? `<div class="kv" style="color:var(--amber)">${e.note}</div>`:""}
+      const redBadge = e.red_confirmed_at? ` <span class="chip pass">RED ✓</span>` : "";
+      const bookBtns = e.red_confirmed_at? "" :
+        `<div style="margin-top:6px;display:flex;gap:6px">
+          <button class="ex" onclick="confirmRed('${k}')">✔ RED confirmed</button>
+          ${excluded_note(e)? "" : `<button class="ex" onclick="setAside('${k}')">set aside</button>`}
+        </div>`;
+      fh += `<div class="cardp ${cls}"><button class="ex" onclick="rename('${k}','${(e.name||"").replace(/'/g,"")}')">✎ name</button><h3>${n? "#"+n+" · ":""}${title}</h3><span class="chip ${cls}">${excluded? "SET ASIDE" : e.flashed?"FLASHED ✓":"FAILED"}</span>${redBadge}${when? `<span class="kv" style="display:inline"> at ${when}</span>`:""}${excluded&&e.note? `<div class="kv" style="color:var(--amber)">${e.note}</div>`:""}
         <div class="kv">mac <b class="mono">${e.mac||"?"}</b></div>
-        <div class="kv">flashed fw <span class="mono">${e.fw||"?"}</span></div>${mesh}</div>`;
+        <div class="kv">flashed fw <span class="mono">${e.fw||"?"}</span></div>${mesh}${e.flashed? bookBtns : ""}</div>`;
     }
     const br = s.bridge||{};
     if(br.port){
@@ -850,6 +863,43 @@ class Handler(BaseHTTPRequestHandler):
                                  f"flashed instantly. DO NOT plug the bridge."
                                  if mins > 0 else "ambush disarmed")
             self._send(json.dumps({"ambush_min": mins}), "application/json")
+        elif self.path.startswith("/confirm"):
+            # Operator bookkeeping from the page — no agent needed.
+            try:
+                body = json.loads(self.rfile.read(
+                    int(self.headers.get("Content-Length", 0))).decode() or "{}")
+                fid = str(body["fid"]).upper()
+                action = body.get("action", "red")
+            except (ValueError, KeyError):
+                self._send('{"ok":false}', "application/json")
+                return
+            now_s = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            with LOCK:
+                e = STATE["roster"].get(fid)
+                if not e:
+                    self._send('{"ok":false,"err":"not in roster"}', "application/json")
+                    return
+                if action == "red":
+                    e.pop("counted", None)
+                    e["red_confirmed_at"] = now_s
+                    e["note"] = f"RED confirmed by operator at {now_s} (via dashboard)"
+                elif action == "aside":
+                    e["counted"] = False
+                    e["note"] = body.get("note") or f"set aside by operator at {now_s}"
+                save_roster()
+            if CFG["jsonl"]:
+                row = {"event": "operator_confirm", "timestamp_utc": now_s,
+                       "fixture_id": fid,
+                       "visual": ("STEADY RED confirmed via dashboard button"
+                                  if action == "red" else
+                                  f"set aside via dashboard: {body.get('note','')}"),
+                       "operator": "dashboard", "recorded_by": "flash-station"}
+                try:
+                    with open(CFG["jsonl"], "a", encoding="utf-8") as f:
+                        f.write(json.dumps(row) + "\n")
+                except OSError:
+                    pass
+            self._send('{"ok":true}', "application/json")
         elif self.path.startswith("/checkup"):
             try:
                 body = json.loads(self.rfile.read(
