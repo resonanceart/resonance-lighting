@@ -47,8 +47,70 @@ STATE = {
     "roster": {},     # fixture_id -> durable flashed-light ledger (persisted)
 }
 CFG = {"jsonl": None, "expect": 12, "dev_glob": "/dev/cu.usbmodem*", "hold_s": 90,
-       "roster": None}
+       "roster": None, "rescue_dir": None, "shim": None}
 _jsonl_offset = 0
+
+# Auto-flash: OFF until the operator arms it from the page with a battery size.
+# Never flashes a known bridge or a fixture already recorded as flashed.
+KNOWN_BRIDGES = {"E39F1C", "4D5DB0"}  # CoreS3 bridges share the fixture VID/PID
+AUTO = {"armed_mah": 0, "batch": None, "last_note": "disarmed"}
+
+
+def autoflash_tick():
+    """When armed: debounce newly-seen fixture ports, then run ONE batch
+    commission over all of them (parallel inside Ben's tool — avoids two
+    processes interleaving appends into the same evidence JSONL)."""
+    if not AUTO["armed_mah"] or not CFG["rescue_dir"]:
+        return
+    b = AUTO["batch"]
+    if b and b["proc"].poll() is None:
+        return  # a batch is running; new plugs join the next one
+    if b and b["proc"].poll() is not None:
+        AUTO["last_note"] = f"batch of {len(b['ports'])} finished (exit {b['proc'].poll()})"
+        AUTO["batch"] = None
+    now = time.time()
+    with LOCK:
+        ready = []
+        for dev, p in STATE["ports"].items():
+            if not p["present"] or p.get("flashing"):
+                continue
+            usb = p.get("usb")
+            if not usb or not usb.get("fixture_hint"):
+                continue  # wait until the hardware cross-check identifies it
+            fid = usb["fixture_hint"]
+            if fid in KNOWN_BRIDGES:
+                continue
+            entry = STATE["roster"].get(fid)
+            if entry and entry.get("flashed"):
+                continue  # already done — a replugged red light is never re-flashed
+            if p.get("auto_attempted"):
+                continue  # one auto attempt per plug-in; failures need a human eye
+            if now - p.get("last_change", now) < 6:
+                continue  # debounce: let a wave of plugs settle
+            ready.append(dev)
+        if not ready:
+            return
+        for dev in ready:
+            STATE["ports"][dev]["auto_attempted"] = True
+    mah = AUTO["armed_mah"]
+    cmd = ["python3", CFG["shim"], "commission",
+           "--out", CFG["jsonl"], "--append",
+           "--build-path", "firmware/fixture/build/fx-260816-prtrel1-b",
+           "--sketch-dir", "fixture",
+           "--expect-fw", "fx-260816-prtrel1-b",
+           "--expect-count", str(len(ready)),
+           "--ports", *ready,
+           "--max-parallel", str(len(ready)),
+           "--wifi-check", "--wifi-parallel", "1",
+           "--battery-chemistry", "Generic_LFP",
+           "--capacity-mah", str(mah), "--charge-ma", "2000",
+           "--maintain-v", "4.6", "--ota-profile", "Party In The Woods",
+           "--allow-battery-present"]
+    proc = subprocess.Popen(cmd, cwd=CFG["rescue_dir"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    AUTO["batch"] = {"proc": proc, "ports": ready, "started": now}
+    AUTO["last_note"] = f"flashing {len(ready)}: " + ", ".join(
+        d.split("/")[-1] for d in ready)
 
 
 def load_roster():
@@ -270,7 +332,7 @@ def watcher():
     # missing roster dir) — the watcher must survive ANY single-step failure.
     n = 0
     while True:
-        for step in (poll_ports, poll_jsonl, detect_flashing):
+        for step in (poll_ports, poll_jsonl, detect_flashing, autoflash_tick):
             try:
                 step()
             except Exception as e:
@@ -339,6 +401,14 @@ padding:26px;text-align:center}
  <div class="stat"><b id="n-conn">0</b><span>plugged in now</span></div>
  <div class="stat"><b id="n-pass">0</b><span id="lbl-pass">flashed ✓ / 12</span></div>
  <div class="stat"><b id="n-fail">0</b><span>failed</span></div>
+ <div class="stat" style="min-width:220px"><b id="auto-state" style="font-size:.95rem">AUTO-FLASH OFF</b>
+  <span id="auto-note">plug-ins are watched only</span>
+  <div style="margin-top:6px;display:flex;gap:6px">
+   <button class="ex" onclick="arm(15000)">arm 15 Ah</button>
+   <button class="ex" onclick="arm(6000)">arm 6 Ah</button>
+   <button class="ex" onclick="arm(0)">off</button>
+  </div>
+ </div>
 </div>
 <h2>Plugged in now</h2>
 <div class="cards" id="cards"></div>
@@ -366,10 +436,7 @@ function liveCard(dev,p,r){
     const f = k => c[k]===true? "✓" : c[k]===false? "✗" : "–";
     kv += `<div class="kv mono">preflight ${f("preflight")} · upload ${f("upload")} · serial ${f("serial_verify")} · wifi ${f("wifi_verify")}</div>`;
     if(r.verdict==="PASS"){
-      const left = Math.max(0, HOLD - (Date.now()/1000 - r.seen_at));
-      kv += left>0
-        ? `<div class="hold">⏳ keep USB attached — ${Math.ceil(left)}s hold remaining, then check steady red</div>`
-        : `<div class="hold ok">✓ hold elapsed — verify steady red (no bridge running), then unplug</div>`;
+      kv += `<div class="hold ok">✓ flashed — when the light shows STEADY RED, unplug it</div>`;
     }
   } else if(flashing){
     kv += `<div class="hold">⚡ upload in progress — do not unplug</div>`;
@@ -382,6 +449,7 @@ function liveCard(dev,p,r){
     <span class="chip ${cls}">${chip}</span> <span class="kv" style="display:inline">for ${age}</span>${kv}</div>`;
 }
 function tog(dev){ excluded[dev]=!excluded[dev]; tick(); }
+async function arm(mah){ await fetch("/arm",{method:"POST",body:String(mah)}); tick(); }
 async function tick(){
   try{
     const s = await (await fetch("/state")).json();
@@ -402,6 +470,10 @@ async function tick(){
         <div class="kv">mac <b class="mono">${e.mac||"?"}</b></div>
         <div class="kv">fw <span class="mono">${e.fw||"?"}</span>${e.first_pass_at? " · "+e.first_pass_at.slice(11,16)+"Z":""}</div></div>`;
     }
+    const a = s.auto||{};
+    document.getElementById("auto-state").textContent = a.armed_mah? ("AUTO ⚡ "+(a.armed_mah/1000)+" Ah") : "AUTO-FLASH OFF";
+    document.getElementById("auto-state").style.color = a.armed_mah? "var(--green)" : "";
+    document.getElementById("auto-note").textContent = a.note||"";
     document.getElementById("n-conn").textContent = conn;
     document.getElementById("n-pass").textContent = pass;
     document.getElementById("n-fail").textContent = fail;
@@ -436,10 +508,26 @@ class Handler(BaseHTTPRequestHandler):
                     "roster": STATE["roster"],
                     "expect": CFG["expect"],
                     "jsonl": CFG["jsonl"],
+                    "auto": {"armed_mah": AUTO["armed_mah"], "note": AUTO["last_note"],
+                             "auto_available": bool(CFG["rescue_dir"])},
                 }
             self._send(json.dumps(payload), "application/json")
         else:
             self._send(PAGE.replace("%%HOLD%%", str(CFG["hold_s"])), "text/html; charset=utf-8")
+
+    def do_POST(self):
+        if self.path.startswith("/arm"):
+            try:
+                n = int(self.rfile.read(int(self.headers.get("Content-Length", 0))
+                                        ).decode() or "0")
+            except ValueError:
+                n = 0
+            AUTO["armed_mah"] = n if n in (6000, 15000) else 0
+            AUTO["last_note"] = (f"ARMED {AUTO['armed_mah']} mAh — plug lights in"
+                                 if AUTO["armed_mah"] else "disarmed")
+            self._send(json.dumps({"armed_mah": AUTO["armed_mah"]}), "application/json")
+        else:
+            self._send("{}", "application/json")
 
 
 def main():
@@ -453,13 +541,21 @@ def main():
                     help="port pattern to watch (override for testing)")
     ap.add_argument("--hold-s", type=int, default=90,
                     help="post-PASS keep-USB-attached hold, seconds (handoff says 90)")
+    ap.add_argument("--rescue-dir", default=os.path.expanduser("~/code/resonance-usb-rescue"),
+                    help="Ben's rescue worktree (build + batch tool); auto-flash disabled if absent")
     ap.add_argument("--roster", default=os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..", "ops", "bench", "data", "usb", "flash-roster-elliot.json"),
         help="durable ledger of flashed lights (MAC, fixture id, verdict); survives restarts")
     args = ap.parse_args()
-    CFG.update(jsonl=args.jsonl, expect=args.expect, dev_glob=args.dev_glob,
-               hold_s=args.hold_s, roster=os.path.abspath(args.roster))
+    rescue = os.path.abspath(os.path.expanduser(args.rescue_dir))
+    shim = os.path.join(os.path.dirname(os.path.abspath(__file__)), "usb-bringup-mac.py")
+    CFG.update(jsonl=os.path.abspath(os.path.expanduser(args.jsonl)) if args.jsonl else None,
+               expect=args.expect, dev_glob=args.dev_glob,
+               hold_s=args.hold_s, roster=os.path.abspath(args.roster),
+               rescue_dir=rescue if (os.path.isdir(rescue) and os.path.isfile(shim)
+                                     and args.jsonl) else None,
+               shim=shim)
     load_roster()
 
     threading.Thread(target=watcher, daemon=True).start()
