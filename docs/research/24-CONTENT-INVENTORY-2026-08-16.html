@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resonance Mirror Inventory</title>
+<style>
+  :root {
+    --paper: #F6F8F7;
+    --card: #FFFFFF;
+    --ink: #1A211F;
+    --muted: #5B6863;
+    --line: #DCE3E0;
+    --accent: #2E6E62;
+    --accent-ink: #FFFFFF;
+    --chip-read-bg: #E7ECEA;  --chip-read-fg: #46544F;
+    --chip-blink-bg: #E3ECF8; --chip-blink-fg: #2B5A9E;
+    --chip-cfg-bg: #F8EEDA;   --chip-cfg-fg: #8A6116;
+    --chip-ops-bg: #F9E4E1;   --chip-ops-fg: #A33A2E;
+    --chip-rsvd-bg: transparent; --chip-rsvd-fg: #7A8781;
+    --callout-bg: #EDF3F1;
+    --code-bg: #EDF1EF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #121715; --card: #191F1C; --ink: #E8EDEA; --muted: #93A09A;
+      --line: #26302C; --accent: #6FBFAE; --accent-ink: #0E1513;
+      --chip-read-bg: #232B28; --chip-read-fg: #A6B3AD;
+      --chip-blink-bg: #1D2A3C; --chip-blink-fg: #8FB4E8;
+      --chip-cfg-bg: #33290F; --chip-cfg-fg: #E0B45C;
+      --chip-ops-bg: #3A1F1B; --chip-ops-fg: #EE9184;
+      --chip-rsvd-fg: #6E7B75;
+      --callout-bg: #1C2522; --code-bg: #202927;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #121715; --card: #191F1C; --ink: #E8EDEA; --muted: #93A09A;
+    --line: #26302C; --accent: #6FBFAE; --accent-ink: #0E1513;
+    --chip-read-bg: #232B28; --chip-read-fg: #A6B3AD;
+    --chip-blink-bg: #1D2A3C; --chip-blink-fg: #8FB4E8;
+    --chip-cfg-bg: #33290F; --chip-cfg-fg: #E0B45C;
+    --chip-ops-bg: #3A1F1B; --chip-ops-fg: #EE9184;
+    --chip-rsvd-fg: #6E7B75;
+    --callout-bg: #1C2522; --code-bg: #202927;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.55; margin: 0;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px 80px; }
+  h1, h2, h3 { font-family: "Seravek", "Gill Sans", "Avenir Next", system-ui, sans-serif; text-wrap: balance; }
+  h1 { font-size: 1.9rem; font-weight: 600; margin: 0.2em 0 0.1em; }
+  h2 { font-size: 1.3rem; font-weight: 600; margin: 0 0 4px; }
+  h3 { font-size: 1.02rem; font-weight: 600; margin: 0 0 6px; }
+  .sub { color: var(--muted); max-width: 68ch; margin: 4px 0 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover, a:focus-visible { text-decoration: underline; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.86em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .eyebrow { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+
+  header.top { padding: 40px 0 8px; border-bottom: 1px solid var(--line); }
+  nav.jump {
+    position: sticky; top: 0; z-index: 5; background: var(--paper);
+    display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 0;
+    border-bottom: 1px solid var(--line); margin-bottom: 28px;
+  }
+  nav.jump a {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.05em; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px;
+  }
+  nav.jump a:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 22px 0 8px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 0.78rem; }
+
+  section { margin: 44px 0 0; scroll-margin-top: 64px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.87rem; }
+  th { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); text-align: left; font-weight: 500; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; color: var(--muted); }
+
+  .chip {
+    display: inline-block; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.64rem; letter-spacing: 0.08em; font-weight: 600;
+    border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+  }
+  .chip.read  { background: var(--chip-read-bg);  color: var(--chip-read-fg); }
+  .chip.blink { background: var(--chip-blink-bg); color: var(--chip-blink-fg); }
+  .chip.cfg   { background: var(--chip-cfg-bg);   color: var(--chip-cfg-fg); }
+  .chip.ops   { background: var(--chip-ops-bg);   color: var(--chip-ops-fg); }
+  .chip.rsvd  { background: var(--chip-rsvd-bg);  color: var(--chip-rsvd-fg); border: 1px dashed var(--chip-rsvd-fg); }
+
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 12px; }
+  .filters button {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.7rem; letter-spacing: 0.06em;
+    background: var(--card); color: var(--muted); border: 1px solid var(--line);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer;
+  }
+  .filters button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  .callout { background: var(--callout-bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 14px 0; max-width: 72ch; }
+  .callout b { font-weight: 650; }
+
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .board .col { border-radius: 12px; border: 1px solid var(--line); background: var(--card); padding: 16px 18px; }
+  .board .col.now { border-top: 3px solid var(--accent); }
+  .board .col.ask { border-top: 3px solid var(--chip-cfg-fg); }
+  .board .col.out { border-top: 3px solid var(--chip-ops-fg); }
+  .board ul { margin: 8px 0 0; padding-left: 18px; }
+  .board li { margin: 6px 0; }
+  .board .why { color: var(--muted); font-size: 0.82rem; }
+
+  ul.tight { margin: 6px 0 0; padding-left: 18px; }
+  ul.tight li { margin: 4px 0; }
+  .k { color: var(--muted); }
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; max-width: 72ch; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+<header class="top">
+  <p class="eyebrow">Resonance Tree · lighting workstream · research layer · 2026-08-16</p>
+  <h1>Resonance Mirror Inventory</h1>
+  <p class="sub">Everything testable, commandable, and dashboardable in Ben's repo — the parts list for a visualizer that presents <em>work already tested</em> rather than creating new code. Compiled from a three-agent deep dive @ <code>b18938e</code>. Scene scope: the whole Tree area plus the perimeter ring.</p>
+  <div class="stats">
+    <div class="stat"><b>26</b><span>packet types on the wire</span></div>
+    <div class="stat"><b>45</b><span>bench tools, 7 groups</span></div>
+    <div class="stat"><b>18</b><span>test reports w/ verdicts</span></div>
+    <div class="stat"><b>6</b><span>dashboards already built</span></div>
+    <div class="stat"><b>57</b><span>boards in the registry</span></div>
+    <div class="stat"><b>130</b><span>designed fixture slots</span></div>
+  </div>
+</header>
+
+<nav class="jump" aria-label="Sections">
+  <a href="#now">Build line</a>
+  <a href="#commands">Commands</a>
+  <a href="#live">Live data</a>
+  <a href="#bench">Bench tests</a>
+  <a href="#dash">Dashboards</a>
+  <a href="#reports">Reports</a>
+  <a href="#data">Datasets</a>
+  <a href="#questions">Ben questions</a>
+</nav>
+
+<section id="now">
+  <p class="eyebrow">The build-nothing-new line</p>
+  <h2>What can be a dashboard today, what needs one Ben decision, what stays out</h2>
+  <div class="board" style="margin-top:14px">
+    <div class="col now">
+      <h3>Dashboardable now — zero new firmware</h3>
+      <ul>
+        <li>Fleet census: every living light, last-heard honesty windows</li>
+        <li>Battery health: mV / mA / SoC + BQ25628E charger truth per light</li>
+        <li>Firmware rollout progress (registry + OTA records)</li>
+        <li>Lifecycle / power tier / active program (60&nbsp;s cadence)</li>
+        <li>Commissioning provenance per MAC (285 bring-up records)</li>
+        <li>All bench datasets: power, LED efficiency, network PDR, solar, solenoid</li>
+        <li>Identify blink <span class="why">(pending the deployed-image check, Q3)</span></li>
+      </ul>
+    </div>
+    <div class="col ask">
+      <h3>Needs one Ben decision each</h3>
+      <ul>
+        <li>Program truth at 1&nbsp;Hz <span class="why">— bridge mode choice (Q1); text mode drops choreo</span></li>
+        <li>Self-location <span class="why">— flip on <code>NB_NEIGHBOR_REPORT</code> (defined, not sent)</span></li>
+        <li>Sensor visibility in normal ops <span class="why">— ToF/tilt/sway/BMP are maintenance-only today</span></li>
+        <li>Wall-clock / time quality <span class="why">— <code>NB_TIME_QUALITY</code> reserved (ADR 0031)</span></li>
+      </ul>
+    </div>
+    <div class="col out">
+      <h3>Explicitly out</h3>
+      <ul>
+        <li>Bulk direct-frame control <span class="why">— Ben's log: "not treated as proof"</span></li>
+        <li>Anything lease-based <span class="why">— "ordinary lighting remains deliberately leaseless"</span></li>
+        <li>Audio direct frames on current firmware <span class="why">— live filter bug (Q6)</span></li>
+        <li>Any second OTA writer <span class="why">— the 08-16 competing-writer incident</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout"><b>No lasers exist.</b> No laser class, hardware, or command anywhere in the repo (verified 08-15). The idea traces to a "tight beams = lasers" doc simile and the ToF sensors' Class-1 VCSELs. The four real classes: 72 downlight · 24 perimeter · 18 chandelier · 16 trunk/uplight.</div>
+</section>
+
+<section id="commands">
+  <p class="eyebrow">Command inventory</p>
+  <h2>Every command surface, with a write-risk tier on each</h2>
+  <p class="sub">Tiers: <span class="chip read">READ</span> observe only · <span class="chip blink">BLINK</span> benign, self-expiring visual · <span class="chip cfg">CONFIG</span> changes device state · <span class="chip ops">OPS</span> power, firmware, or actuation · <span class="chip rsvd">RESERVED</span> defined in the contract, never sent. Mirror v1 proposes exactly one sendable type: <code>NB_IDENTIFY</code>.</p>
+
+  <h3 style="margin-top:20px">ESP-NOW wire vocabulary — <code>packet.h</code>, protocol v1</h3>
+  <div class="filters" role="group" aria-label="Filter by tier">
+    <button aria-pressed="true" data-f="all">All 26</button>
+    <button aria-pressed="false" data-f="read">Read</button>
+    <button aria-pressed="false" data-f="blink">Blink</button>
+    <button aria-pressed="false" data-f="cfg">Config</button>
+    <button aria-pressed="false" data-f="ops">Ops</button>
+    <button aria-pressed="false" data-f="rsvd">Reserved</button>
+  </div>
+  <div class="tablewrap">
+  <table id="pk">
+    <thead><tr><th>#</th><th>Type</th><th>Tier</th><th>Direction</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr data-t="read"><td class="num">1</td><td class="mono">NB_HEARTBEAT</td><td><span class="chip read">READ</span></td><td>peer → all</td><td>State + telemetry; 29 B short / 148 B full, append-only tails</td></tr>
+      <tr data-t="ops"><td class="num">2</td><td class="mono">NB_SHOWFRAME</td><td><span class="chip ops">OPS</span></td><td>bridge → all</td><td>Show command</td></tr>
+      <tr data-t="ops"><td class="num">3</td><td class="mono">NB_ENTER_MAINT</td><td><span class="chip ops">OPS</span></td><td>bridge → all</td><td>Enter shared-WiFi maintenance — kills ESP-NOW + LED rails</td></tr>
+      <tr data-t="cfg"><td class="num">4</td><td class="mono">NB_RESUME</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → all</td><td>Leave maintenance, rejoin mesh</td></tr>
+      <tr data-t="cfg"><td class="num">5</td><td class="mono">NB_SET_RATE</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → all</td><td>Heartbeat/frame rate, 1–100 Hz</td></tr>
+      <tr data-t="blink"><td class="num">6</td><td class="mono">NB_IDENTIFY</td><td><span class="chip blink">BLINK</span></td><td>bridge → target/all</td><td>Locate blink, color+blink tail — <b>the proposed Mirror v1 verb</b></td></tr>
+      <tr data-t="read"><td class="num">7</td><td class="mono">NB_SCANAP</td><td><span class="chip read">READ</span></td><td>bench peer → bridge</td><td>Scanned-AP report; fixtures never send it</td></tr>
+      <tr data-t="cfg"><td class="num">8</td><td class="mono">NB_SET_MAINTAIN</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → all</td><td>Charger VINDPM / maintain voltage</td></tr>
+      <tr data-t="cfg"><td class="num">9·14</td><td class="mono">NB_SET_CAPACITY ±TARGET</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → all/target</td><td>Persist battery capacity mAh — reboots the board</td></tr>
+      <tr data-t="cfg"><td class="num">10·15</td><td class="mono">NB_SET_CHARGE_MA ±TARGET</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → all/target</td><td>Charge-current cap, 40–2000 mA</td></tr>
+      <tr data-t="ops"><td class="num">11·13</td><td class="mono">NB_SLEEP_FOR ±TARGET</td><td><span class="chip ops">OPS</span></td><td>bridge → all/target</td><td>Cut rails, timed deep sleep</td></tr>
+      <tr data-t="cfg"><td class="num">12</td><td class="mono">NB_DRAWDOWN</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → bench</td><td>Bench discharge load; fixtures ignore it</td></tr>
+      <tr data-t="ops"><td class="num">16</td><td class="mono">NB_TARGET_ENTER_MAINT</td><td><span class="chip ops">OPS</span></td><td>bridge → target</td><td>Targeted maintenance/OTA window</td></tr>
+      <tr data-t="ops"><td class="num">17</td><td class="mono">NB_TARGET_SOLENOID</td><td><span class="chip ops">OPS</span></td><td>bridge → target</td><td>One bounded strike pulse, 5–300 ms</td></tr>
+      <tr data-t="read"><td class="num">18</td><td class="mono">NB_CHOREO_STATE</td><td><span class="chip read">READ</span></td><td>peer → all</td><td>1 Hz program / intensity / phase / flags</td></tr>
+      <tr data-t="ops"><td class="num">19</td><td class="mono">NB_PROGRAM_SET</td><td><span class="chip ops">OPS</span></td><td>bridge → all/target</td><td>Program override lease</td></tr>
+      <tr data-t="rsvd"><td class="num">20</td><td class="mono">NB_TIME_QUALITY</td><td><span class="chip rsvd">RESERVED</span></td><td>—</td><td>Time anchors (ADR 0031) — defined, not sent</td></tr>
+      <tr data-t="cfg"><td class="num">21</td><td class="mono">NB_PROFILE</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → all/target</td><td>Commission/field flip — persists to NVS</td></tr>
+      <tr data-t="rsvd"><td class="num">22</td><td class="mono">NB_NEIGHBOR_REPORT</td><td><span class="chip rsvd">RESERVED</span></td><td>—</td><td>Censored-median neighbor RSSI — <b>the locate substrate</b>, not sent yet</td></tr>
+      <tr data-t="rsvd"><td class="num">23</td><td class="mono">NB_EVENT</td><td><span class="chip rsvd">RESERVED</span></td><td>—</td><td>Event fabric — defined, not sent</td></tr>
+      <tr data-t="cfg"><td class="num">24</td><td class="mono">NB_NEIGHBOR_SET</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → target</td><td>Pinned CA adjacency, ≤8 neighbors</td></tr>
+      <tr data-t="ops"><td class="num">25</td><td class="mono">NB_DIRECT_FRAME</td><td><span class="chip ops">OPS</span></td><td>bridge → all</td><td>Per-fixture RGBW, ≤18 entries per frame</td></tr>
+      <tr data-t="cfg"><td class="num">26</td><td class="mono">NB_FORCE_LIFECYCLE</td><td><span class="chip cfg">CONFIG</span></td><td>bridge → all/target</td><td>Force day/night/auto — RAM-only</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>Bridge serial verbs <span class="k">(text mode, 115200)</span></h3>
+      <ul class="tight">
+        <li><span class="chip read">READ</span> <code>r</code> status line · <code>t</code> JSON bridge stats</li>
+        <li><span class="chip blink">BLINK</span> <code>i[id][:s]</code> / <code>I</code> identify one / all</li>
+        <li><span class="chip cfg">CONFIG</span> <code>c</code> resume · <code>+/-</code> <code>R&lt;hz&gt;</code> rate · <code>F</code> profile (persists!) · <code>m</code> VINDPM · <code>C</code> capacity (reboots) · <code>G</code> charge cap · <code>D</code> drawdown</li>
+        <li><span class="chip ops">OPS</span> <code>U[id]</code> 35 s maintenance burst · <code>K&lt;id&gt;:&lt;ms&gt;</code> solenoid · <code>S[s]</code> sleep · <code>P&lt;id&gt;</code> park</li>
+      </ul>
+      <p class="k" style="font-size:0.82rem">Reliability built in: broadcast ×4 @5 ms, targeted ×6 @8 ms. Ben's <code>net_bench_dashboard.py</code> ships a validated allowlist of these — the precedent the Mirror's command fence follows.</p>
+    </div>
+    <div class="card">
+      <h3>Fixture-side surfaces</h3>
+      <ul class="tight">
+        <li><b>USB serial CLI</b> — <code>t</code> full telemetry JSON <span class="chip read">READ</span> · <code>r</code> status <span class="chip read">READ</span> · plus config verbs (<code>C G O N L F H</code>) and ops verbs (<code>u</code> maint, <code>K</code> strike, <code>S</code> sleep, <code>X</code> PROTECT clear)</li>
+        <li><b>HTTP, maintenance mode only</b> — four routes: <code>/</code> banner · <code>/telemetry</code> <span class="chip read">READ</span> · <code>/resume</code> <span class="chip cfg">CONFIG</span> · <code>/update</code> OTA <span class="chip ops">OPS</span>, <b>unauthenticated</b> (the competing-writer incident). Window self-expires at 10 min.</li>
+        <li><b>Bench firmwares add</b> — <code>led_studio /state·/set</code> · <code>presence_bench /api/frame</code> · <code>led_sol_bench /probe_strike</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout"><b>Identify caveat (verify before UX depends on it).</b> The deployed image visibly blinked the whole fleet on broadcast identify (Ben's log). But at HEAD, the bridge hardcodes <code>color=0/blink=0</code> and the pixel-identify renderer looks unreachable — only the tiny status LED's <code>..-</code> pattern is provably driven. Question 3 for Ben; his TODO already plans an identify rework (~30 s, toggle, by-ID).</div>
+</section>
+
+<section id="live">
+  <p class="eyebrow">Live data inventory</p>
+  <h2>What a light tells us, at what cadence</h2>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card">
+      <h3>Heartbeat short <span class="k">· every 5 s (field) / 1 s (commission), ±30% jitter</span></h3>
+      <p class="mono" style="font-size:0.8rem">batt mV · batt mA · SoC (255 = no gauge) · reset reason · mode · dl_pdr‰ · dl_rssi · supply mV/mA/good</p>
+    </div>
+    <div class="card">
+      <h3>Heartbeat full <span class="k">· every 60 s ±30%</span></h3>
+      <p class="mono" style="font-size:0.8rem">+ fw_rev · maint_status · lifecycle phase · BQ25628E charger registers · configured capacity/charge · profile · life_state · power_tier · active_program · night_min</p>
+    </div>
+    <div class="card">
+      <h3>Choreo state <span class="k">· 1 Hz — binary bridge mode only</span></h3>
+      <p class="mono" style="font-size:0.8rem">program_id · state · intensity · phase_ms · flags (power-limited / lease / commission)</p>
+      <p class="k" style="font-size:0.82rem">Text-mode bridge drops this entirely → program truth goes 60 s stale. The core of Question 1.</p>
+    </div>
+    <div class="card">
+      <h3>Maintenance / USB only <span class="k">· ~60-key telemetry JSON</span></h3>
+      <p class="mono" style="font-size:0.8rem">full sensor block (ToF depth/confidence · tilt · sway · BMP temp/pressure) · OTA partition + state · heap · solenoid counters</p>
+      <p class="k" style="font-size:0.82rem">No path to sensor data during normal fleet operation — a Ben decision away.</p>
+    </div>
+  </div>
+  <div class="callout"><b>Honesty rules the Mirror inherits.</b> Heartbeat tails 5/10/12 always arrive as valid zeros the fixture never populates — render "—", never 0. <code>soc=255</code> means no gauge reading. <code>null ≠ 0</code>: a running fixture reports <code>life_state=null</code> while a dormant one reports real values. Two firmware naming schemes are live in the field (<code>fixture-*</code> and <code>fx-*</code>). Census counts are a function of listen time — never quote one without its window.</div>
+</section>
+
+<section id="bench">
+  <p class="eyebrow">Bench-test inventory</p>
+  <h2>45 tools in 7 groups — Ben's tested ground truth</h2>
+  <div class="tablewrap" style="margin-top:12px">
+  <table>
+    <thead><tr><th>Group</th><th>Tools</th><th>What's proven</th><th>Data out</th></tr></thead>
+    <tbody>
+      <tr><td><b>Power / battery / gauge</b> <span class="k">(14)</span></td><td class="mono">power_logger · afk_sweep/discharge/analyze · hex_ramp · bb_efficiency · charge_taper_watch · et5406_discharge · ina_* · loadgen_log · plot_soc_v · power_summary</td><td>3-axis battery×LED×panel matrix; true usable capacity by INA coulomb count; charge taper; gauge bias (+8%)</td><td>site-partitioned JSONL (<code>data/ca·tn</code>), PNGs</td></tr>
+      <tr><td><b>LED / optics</b> <span class="k">(10)</span></td><td class="mono">led_ina_sweep · led_efficiency_sweep · apogee_par · ab_lux · boost_ab_* · rgbw_boost_ramp · 3 plotters</td><td>mA vs brightness per mode/gamma; PAR-per-mA module ranking; rail-vs-VBAT A/B → <b>verdict: skip the boost</b></td><td>JSONL / CSV / JSON, PNGs</td></tr>
+      <tr><td><b>Networking</b> <span class="k">(9)</span></td><td class="mono">net_bench_log/monitor/dashboard/serial_bridge/summary/ratesweep/walk/walk_plot + tests</td><td>Uplink+downlink PDR, RSSI; rate sweep 1–50 Hz → loss knee + safe node count; range walks</td><td>UDP :54321 line protocol → JSONL; two live dashboards</td></tr>
+      <tr><td><b>OTA / fleet</b> <span class="k">(3)</span></td><td class="mono">net_bench_ota · field_cycle_ota · fleet_usb_bringup</td><td>Parallel OTA timing (t_ack / t_ready / recovered); 12-worker USB batch commissioning</td><td>OTA-results JSONL · <code>registry.csv</code> · bringup JSONL</td></tr>
+      <tr><td><b>Solar / MPPT</b> <span class="k">(2)</span></td><td class="mono">mpp_sweep · mpp_analyze</td><td>VINDPM sweep with light-normalization + anchor drift; best setpoint vs fixed 5.5 V</td><td>JSONL, plots</td></tr>
+      <tr><td><b>Presence</b> <span class="k">(1)</span></td><td class="mono">presence_logger</td><td>Thermal + 2× ToF + radar frames; thresholds deliberately downstream so rules can re-run on raw data</td><td>typed JSONL (meta/frame/state/mark/summary)</td></tr>
+      <tr><td><b>Solenoid / waveform</b> <span class="k">(3)</span></td><td class="mono">solenoid_vdc_sweep · plot_solenoid_vdc · capbank_waveform</td><td>Strike energy vs width vs VDC, accelerometer-scored; radio-quiet capbank waveforms</td><td>13-col CSV, JSONL</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="k" style="font-size:0.85rem; margin-top:10px">Operator tools in <code>tools/</code>: <code>revive</code> (USB defibrillator via ROM bootloader) · <code>ops</code> (status / flash / flash-old / color / knock / night / maint / watch) · <code>certify</code> (green-blink ready ritual).</p>
+</section>
+
+<section id="dash">
+  <p class="eyebrow">Dashboard inventory</p>
+  <h2>Six dashboards already exist — the Mirror aggregates, never edits</h2>
+  <div class="tablewrap" style="margin-top:12px">
+  <table>
+    <thead><tr><th>Dashboard</th><th>Feed</th><th>Renders</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">net_bench_dashboard.py <span class="k">web :8765</span></td><td>owns bridge serial; re-emits UDP</td><td>Live peer table, sparklines, battery roll-up, 1 Hz SSE, <code>GET /api/state</code> — <b>the normalized schema the Mirror adopts</b> — plus a vetted command panel</td></tr>
+      <tr><td class="mono">net_bench_monitor.py <span class="k">terminal</span></td><td>UDP :54321</td><td>Per-peer table, ASCII RSSI bars, 8 s staleness grey-out</td></tr>
+      <tr><td class="mono">perimeter_trio.html</td><td>polls led_studio <code>/state</code> 1 Hz</td><td>Presence badges, 16-zone ToF heatmap, battery/RSSI, animation controls</td></tr>
+      <tr><td class="mono">cots-mode-dashboard.html</td><td>iframes boards' own pages</td><td>4-board mode grid (legacy bake-off era)</td></tr>
+      <tr><td>presence bench <span class="k">board-hosted</span></td><td><code>/api/frame</code></td><td>Thermal heatmap + zones; detection thresholds live here by design</td></tr>
+      <tr><td>cricket console <span class="k">ADR 0037, planned</span></td><td>ESP-NOW RX, handheld</td><td>Ben's own listen-first census direction — its non-negotiables are adopted as Mirror principles</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="reports">
+  <p class="eyebrow">Test-report inventory</p>
+  <h2>18 reports in <code>docs/tests</code> — the verdicts that matter</h2>
+  <div class="grid3" style="margin-top:12px">
+    <div class="card"><h3>Autolocate RSSI sim</h3><p class="k">Feasible with ~3 surveyed beacons — "NOT hands-free-perfect." The locate charter. Matches our own solver: 0.000 unassisted, 0.91–0.98 with 10–20 human confirms.</p></div>
+    <div class="card"><h3>Boost A/B</h3><p class="k">"Skip the boost — ship un-boosted, feed the LED from the battery, use decent wire."</p></div>
+    <div class="card"><h3>32700 shootout</h3><p class="k">The 7,200 mAh vendor claim didn't hold. Decision basis for the ~75-unit buy.</p></div>
+    <div class="card"><h3>Brownout investigation</h3><p class="k">Root cause: power-management I²C bus integrity under WiFi TX → the 100 kHz rule (ADR 0028).</p></div>
+    <div class="card"><h3>5-node networking</h3><p class="k">The founding ESP-NOW go — built the entire net_bench harness.</p></div>
+    <div class="card"><h3>Solar telemetry range</h3><p class="k">WiFi can't hold from the yard; ESP-NOW can — telemetry rides the heartbeat.</p></div>
+    <div class="card"><h3>20 Ah uplight</h3><p class="k">"The 20 Ah that was" — validated for the uplights.</p></div>
+    <div class="card"><h3>⚠ Dual-input USB service</h3><p class="k">P0 OPEN: two boards bricked via a powered hub sharing VDC + native USB-C. Must resolve before enclosure USB service is trusted.</p></div>
+    <div class="card"><h3>+ 10 more</h3><p class="k">Plans and protocol records (battery quals, COTS bake-off, OTA benchmarks, power-bench harness, solar field cycle, panel prep).</p></div>
+  </div>
+</section>
+
+<section id="data">
+  <p class="eyebrow">Static dataset inventory</p>
+  <h2>Loadable with no radio at all</h2>
+  <div class="tablewrap" style="margin-top:12px">
+  <table>
+    <thead><tr><th>Dataset</th><th>Path</th><th>Mirror use</th></tr></thead>
+    <tbody>
+      <tr><td>Designed geometry, 130 slots <span class="k">(ADR-0032-exact, metres)</span></td><td class="mono">app/public/fixtures.json</td><td>The blank tree + perimeter scene skeleton; blender lane continues full-area geometry</td></tr>
+      <tr><td>Fleet register <span class="k">57 boards, 19 columns</span></td><td class="mono">ops/fleet/registry.csv</td><td>Per-light card: fw + SHA, battery config, role, location. Bring-up record, <b>not</b> a deployment roster</td></tr>
+      <tr><td>Commissioning evidence <span class="k">285 records</span></td><td class="mono">ops/fleet/bringup/*.jsonl</td><td>Provenance per MAC</td></tr>
+      <tr><td>OTA rollout records</td><td class="mono">ops/bench/data/ca·usb/*.jsonl</td><td>Firmware history per fixture</td></tr>
+      <tr><td>Canonical fleet table + power anchors</td><td class="mono">docs/block-diagram/SYSTEM.md</td><td>Class specs, measured power context</td></tr>
+      <tr><td>ADR corpus <span class="k">39 files, uniform headers</span></td><td class="mono">docs/decisions/</td><td>Parseable decision index</td></tr>
+      <tr><td>Solar scores <span class="k">~15%-conservative caveat</span></td><td class="mono">ops/solarsim/data/</td><td>Future solar overlay — ranking yes, absolute Wh no</td></tr>
+      <tr><td>Locate sims + viewers</td><td class="mono">ops/locate/data/</td><td>Locate feasibility reference</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout"><b>The missing join.</b> <code>fixture_id</code> = last 6 hex of the MAC and is the key across every dataset above — but the MAC↔slot (F000–F129) binding <b>exists nowhere in the repo</b>. Ben's TODO calls it unbuilt commissioning work. The Mirror's name-and-seat layer is that missing piece.</div>
+</section>
+
+<section id="questions">
+  <p class="eyebrow">Open questions for Ben</p>
+  <h2>Seven questions, one blocking</h2>
+  <ul class="tight" style="max-width:76ch">
+    <li><b>Q1 ⛔ Bridge mode for the Mirror's ear.</b> Text mode: simple, heartbeats only, no choreo, no per-packet RSSI. Binary mode (the <code>--cambium</code> build flag — Ben's firmware, awkward name): everything + RSSI, but we implement COBS/CRC framing ourselves. Or: a third <code>--listener</code> flag with TX compiled out entirely?</li>
+    <li><b>Q2 Deployed-image wire truth.</b> Analysis is of HEAD source; the fleet runs <code>fx-260816-otafix1-b → prtrel1-b</code>. Any wire-visible deltas?</li>
+    <li><b>Q3 Identify path.</b> Log says the fleet blinked blue; HEAD source says bridge identify can't reach the pixel renderer. What fires on the deployed image?</li>
+    <li><b>Q4 Sensor visibility.</b> Appetite for a slow sensor tail or <code>NB_EVENT</code> post-event?</li>
+    <li><b>Q5 <code>NB_NEIGHBOR_REPORT</code> timing.</b> Pairwise-RSSI dump is on your TODO — pre- or post-event?</li>
+    <li><b>Q6 Found bug (your lane, your call).</b> Audio mode filters targets by <code>fwRev.startsWith("fixture-")</code> — every <code>fx-*</code> fixture is excluded from audio direct frames.</li>
+    <li><b>Q7 Geometry ground truth.</b> Adopt the 130-slot ADR-0032 export as shared truth, per your TODO:1275?</li>
+  </ul>
+</section>
+
+<footer>
+  Companion documents in the repo: <code>docs/research/PRD-resonance-mirror.md</code> (DRAFT v0.1) · <code>docs/research/24-CONTENT-INVENTORY-2026-08-16.md</code> (source notes). Research base: three parallel deep-dive agents over Ben's lanes @ <code>b18938e</code>, 2026-08-16. Read-only by construction; sends fenced to Ben's approved commands.
+</footer>
+</div>
+
+<script>
+  (function () {
+    var btns = document.querySelectorAll('.filters button');
+    var rows = document.querySelectorAll('#pk tbody tr');
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        btns.forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+        b.setAttribute('aria-pressed', 'true');
+        var f = b.getAttribute('data-f');
+        rows.forEach(function (r) {
+          r.style.display = (f === 'all' || r.getAttribute('data-t') === f) ? '' : 'none';
+        });
+      });
+    });
+  })();
+</script>
+
+</html>
