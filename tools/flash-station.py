@@ -351,10 +351,10 @@ def run_checkup(dev):
     checks = [
         item("firmware", bool(t.get("fw")), f"{t.get('fw')} · ota {t.get('ota_state','?')}"),
         item("battery", bool(t.get("battery_present")),
-             (f"{bv:.3f} V @ {ma:+.0f} mA · " +
-              ("charging" if ma > 20 else "discharging" if ma < -20 else "idle") +
-              (f" · SoC {t['soc_pct']}%" if t.get("soc_pct") not in (None, 255) else " · gauge n/a"))
-             if t.get("battery_present") else "NOT DETECTED (lead unseated or BMS lockout)",
+             (f"{bv:.3f} V @ {ma:+.0f} mA · "
+              + ("charging" if ma > 20 else "discharging" if ma < -20 else "idle")
+              + (f" · SoC {t['soc_pct']}%" if t.get("soc_pct") not in (None, 255) else " · gauge n/a"))
+             if t.get("battery_present") else "NOT DETECTED (lead unseated or BMS lockout)"),
         item("charger (BQ25628E)", bool(t.get("supply_good")) and not t.get("bq_fault0"),
              f"supply {t.get('supply_v')} V / {t.get('supply_ma')} mA · fault0 {t.get('bq_fault0')} · charging_enabled {t.get('charging_enabled')}"),
         item("LED rail", t.get("led_rail_on") is not None,
