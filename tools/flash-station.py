@@ -86,6 +86,18 @@ def autoflash_tick():
     if b and b["proc"].poll() is not None:
         AUTO["last_note"] = f"batch of {len(b['ports'])} finished (exit {b['proc'].poll()})"
         AUTO["batch"] = None
+        # zero-touch release: a pinned chip ends the flash parked in ROM and
+        # needs a reset to boot its new firmware. Do it over USB (esptool
+        # connect + hard-reset) so no human tap is required (Elliot 08-16:
+        # "trying not to reboot unless necessary").
+        if CFG["esptool"]:
+            for dev in b["ports"]:
+                if STATE["ports"].get(dev, {}).get("present"):
+                    subprocess.Popen(
+                        [CFG["esptool"], "--port", dev, "--after", "hard-reset",
+                         "--connect-attempts", "3", "read-mac"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            AUTO["last_note"] += " · auto-releasing to boot new firmware"
     now = time.time()
     with LOCK:
         ready = []
@@ -98,6 +110,11 @@ def autoflash_tick():
             hint = (usb or {}).get("fixture_hint")
             if hint in KNOWN_BRIDGES:
                 continue
+            if (p.get("auto_attempted") and hint
+                    and (STATE["roster"].get(hint) or {}).get("flashed")):
+                p["flash_requested"] = False
+                continue  # ambush never re-flashes a finished light; a human
+                          # click (no auto_attempted) still can, deliberately
             if not hint and not (time.time() < AUTO.get("ambush_until", 0)):
                 continue  # normally wait for identity; AMBUSH can't afford to —
                           # the wake window is ~9 s and esptool must connect first
