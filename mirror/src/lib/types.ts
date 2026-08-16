@@ -75,6 +75,10 @@ export interface FixtureState {
   /** null on a running fixture; real value only when dormant. null ≠ 0. */
   lifeState: string | null
   usb?: { state: 'CONNECTED' | 'PASS' | 'FAIL' | 'UNPLUGGED'; port: string; holdRemainingS?: number }
+  /** Pairwise neighbor RSSI — the NB_NEIGHBOR_REPORT shape (censored-median,
+   *  ≤8 neighbors). Mock fills it; the live wire leaves it undefined until Ben
+   *  enables packet 22 (PRD Q5). Absence = staging halo, never guessed positions. */
+  neighbors?: { id: string; rssi: number }[]
 }
 
 export interface Telemetry {

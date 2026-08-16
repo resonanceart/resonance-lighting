@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import type { LayoutDoc, MirrorCommand, PageDef, WidgetInstance } from './types'
 import { getWidgetDef } from './registry'
+import type { SeatMap } from './locate'
+
+/** Sentinel tab id: the always-on constellation stage (no sheet open). */
+export const TREE_TAB = 'tree'
 
 /**
  * The layout document IS the interface. Everything the operator composes in
@@ -10,6 +14,20 @@ import { getWidgetDef } from './registry'
 
 const STORAGE_KEY = 'mirror-layout-v1'
 const SOURCE_KEY = 'mirror-datasource-v1'
+const SEATS_KEY = 'mirror-seats-v1'
+
+function loadSeats(): SeatMap {
+  try {
+    const raw = localStorage.getItem(SEATS_KEY)
+    if (raw) {
+      const s = JSON.parse(raw) as SeatMap
+      if (s && typeof s === 'object') return s
+    }
+  } catch {
+    /* fall through */
+  }
+  return {}
+}
 
 export type DataSource = { kind: 'mock' } | { kind: 'dashboard'; url: string }
 
@@ -93,10 +111,14 @@ interface MirrorStore {
   activePageId: string
   editMode: boolean
   dataSource: DataSource
+  /** Fix points: human-pinned positions, the locate solver's anchors. */
+  seats: SeatMap
   /** Log of fenced command emissions (v1 has no radio — this is the audit trail). */
   commandLog: { at: number; cmd: MirrorCommand }[]
 
   setDataSource: (s: DataSource) => void
+  pinSeat: (id: string, x: number, y: number) => void
+  unpinSeat: (id: string) => void
 
   setActivePage: (id: string) => void
   toggleEdit: () => void
@@ -129,10 +151,34 @@ function mutPage(layout: LayoutDoc, pageId: string, fn: (p: PageDef) => PageDef)
 
 export const useMirror = create<MirrorStore>((set) => ({
   layout: load(),
-  activePageId: load().pages[0]?.id ?? '',
+  activePageId: TREE_TAB,
   editMode: false,
   dataSource: loadSource(),
+  seats: loadSeats(),
   commandLog: [],
+
+  pinSeat: (id, x, y) =>
+    set((s) => {
+      const seats = { ...s.seats, [id]: { x, y } }
+      try {
+        localStorage.setItem(SEATS_KEY, JSON.stringify(seats))
+      } catch {
+        /* in-memory only */
+      }
+      return { seats }
+    }),
+
+  unpinSeat: (id) =>
+    set((s) => {
+      const seats = { ...s.seats }
+      delete seats[id]
+      try {
+        localStorage.setItem(SEATS_KEY, JSON.stringify(seats))
+      } catch {
+        /* in-memory only */
+      }
+      return { seats }
+    }),
 
   setDataSource: (s) => {
     try {

@@ -51,6 +51,44 @@ const FLEET: FixtureState[] = CLASSES.flatMap(([cls, n], ci) =>
   Array.from({ length: n }, (_, i) => mkFixture(ci * 40 + i + 1, cls)),
 )
 
+/**
+ * Hidden ground-truth positions (normalized 0..1) the mock uses to synthesize
+ * NB_NEIGHBOR_REPORT-shaped pairwise RSSI. Class-clustered like the real
+ * scene: chandelier crown center, downlights inner ring, trunk interior,
+ * perimeter outer ring. The solver never sees these — only the derived RSSI.
+ */
+const RADII: Record<FixtureState['cls'], [number, number]> = {
+  chandelier: [0.06, 0.14],
+  trunk: [0.1, 0.2],
+  downlight: [0.22, 0.38],
+  perimeter: [0.44, 0.48],
+  unknown: [0.3, 0.4],
+}
+const GOLDEN = 2.399963
+
+const TRUE_POS = new Map<string, { x: number; y: number }>()
+FLEET.forEach((f, i) => {
+  const [r0, r1] = RADII[f.cls]
+  const r = r0 + (r1 - r0) * (((i * 37) % 100) / 100)
+  const a = i * GOLDEN
+  TRUE_POS.set(f.fixtureId, { x: 0.5 + r * Math.cos(a), y: 0.5 + r * Math.sin(a) })
+})
+
+const SCENE_METERS = 14
+
+FLEET.forEach((f) => {
+  const me = TRUE_POS.get(f.fixtureId)!
+  f.neighbors = FLEET.filter((o) => o !== f)
+    .map((o) => {
+      const p = TRUE_POS.get(o.fixtureId)!
+      const dM = Math.max(0.5, Math.hypot(p.x - me.x, p.y - me.y) * SCENE_METERS)
+      return { id: o.fixtureId, d: dM }
+    })
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 6)
+    .map((n, k) => ({ id: n.id, rssi: Math.round(-40 - 25 * Math.log10(n.d)) - (k % 2) }))
+})
+
 let tick = 0
 
 /** One animated snapshot; call on an interval for liveness. */

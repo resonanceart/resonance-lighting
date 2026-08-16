@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { TabBar } from './components/TabBar'
 import { WidgetFrame } from './components/WidgetFrame'
 import { EditPanel } from './components/EditPanel'
+import { Constellation } from './components/Constellation'
 import { getWidgetDef } from './lib/registry'
-import { useMirror } from './lib/store'
+import { useMirror, TREE_TAB } from './lib/store'
 import { sampleTelemetry } from './lib/mock'
 import { connectDashboard, type FeedStatus } from './lib/adapter'
 import type { Telemetry } from './lib/types'
@@ -92,20 +93,24 @@ export default function App() {
   const send = useMirror((s) => s.send)
   const { telemetry, status } = useTelemetry()
 
-  const page = layout.pages.find((p) => p.id === activePageId) ?? layout.pages[0]
+  const page = activePageId === TREE_TAB ? undefined : layout.pages.find((p) => p.id === activePageId)
 
   return (
     <div className="app">
-      <main className="app-main">
-        <div className="app-head">
-          <h1>Resonance Mirror</h1>
-          <span className="muted">{telemetry.fixtures.length} heard</span>
-          <SourceControl status={status} />
-        </div>
+      {/* The stage is ALWAYS mounted — TouchConsole's "tree above the controls". */}
+      <div className="stage">
+        <Constellation telemetry={telemetry} />
+      </div>
 
-        {editMode && page && <EditPanel pageId={page.id} />}
+      <header className="app-head">
+        <h1>Resonance Mirror</h1>
+        <SourceControl status={status} />
+      </header>
 
-        {page && (
+      {page && (
+        <div className="sheet" role="dialog" aria-label={page.label}>
+          <div className="sheet-grab" aria-hidden />
+          {editMode && <EditPanel pageId={page.id} />}
           <div className="page-grid">
             {page.widgets
               .filter((w) => w.visible)
@@ -122,8 +127,9 @@ export default function App() {
               <p className="empty span-2">Empty page — hit Edit and add widgets from the palette.</p>
             )}
           </div>
-        )}
-      </main>
+        </div>
+      )}
+
       <TabBar />
     </div>
   )

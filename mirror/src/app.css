@@ -195,25 +195,32 @@ table.data tbody tr:last-child td { border-bottom: none; }
   background: var(--surface-2);
 }
 
-/* ── tab bar ───────────────────────────────────────────── */
+/* ── tab bar — TouchConsole-faithful: fixed nav, 52px tabs, amber active ── */
 .tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 210;
   display: flex;
   border-top: 1px solid var(--line);
-  background: var(--surface);
-  padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(8, 10, 16, 0.96);
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  gap: 2px;
 }
 .tab {
-  flex: 1;
-  min-height: 56px;
+  flex: 1 1 0;
+  min-height: 52px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
   color: var(--muted);
+  border-radius: var(--radius-sm);
   border-top: 2px solid transparent;
 }
-.tab-active { color: var(--accent); border-top-color: var(--accent); }
+.tab-active { color: var(--warn); border-top-color: var(--warn); background: var(--surface); }
 .tab-icon { font-size: 1.15rem; line-height: 1; }
 .tab-label { font-size: 0.62rem; letter-spacing: 0.02em; }
 .tab-edit { color: var(--warn); }
@@ -321,3 +328,86 @@ table.data tbody tr:last-child td { border-bottom: none; }
 
 /* ── command log ───────────────────────────────────────── */
 .cmd-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.8rem; }
+
+/* ── stage + sheet (TouchConsole: tree above, controls in a sheet) ── */
+.app { position: relative; height: 100%; overflow: hidden; }
+.stage {
+  position: absolute;
+  inset: 0 0 calc(68px + env(safe-area-inset-bottom)) 0;
+}
+.app-head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  pointer-events: none;
+}
+.app-head h1 { pointer-events: auto; }
+.app-head .source { pointer-events: auto; }
+
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(68px + env(safe-area-inset-bottom));
+  max-height: 62%;
+  z-index: 100;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  border-radius: 14px 14px 0 0;
+  padding: 6px 14px 14px;
+  overflow-y: auto;
+  box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.45);
+}
+.sheet-grab {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  margin: 4px auto 10px;
+}
+
+/* ── constellation ─────────────────────────────────────── */
+.constellation { position: absolute; inset: 0; }
+.constellation svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.constellation .ring { fill: none; stroke: var(--line); stroke-width: 0.35; stroke-dasharray: 1.4 1.8; }
+.constellation .node { transition: opacity 0.4s; }
+.constellation .node.selected { stroke: var(--ink); stroke-width: 0.7; }
+.constellation .pin-ring { fill: none; stroke: var(--warn); stroke-width: 0.45; }
+.halo-label {
+  fill: var(--muted);
+  font-size: 2.6px;
+  text-anchor: middle;
+  font-family: var(--mono);
+  letter-spacing: 0.4px;
+}
+.stage-status {
+  position: absolute;
+  top: 46px;
+  left: 14px;
+  z-index: 15;
+  color: var(--muted);
+  margin: 0;
+}
+.light-card {
+  position: absolute;
+  top: 70px;
+  left: 14px;
+  right: 14px;
+  z-index: 30;
+  max-width: 340px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+.light-card-head { display: flex; align-items: center; gap: 8px; }
+.light-card .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
