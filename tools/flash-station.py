@@ -108,16 +108,19 @@ def autoflash_tick():
                 continue  # THE GATE: only Elliot's button click sets this
             usb = p.get("usb")
             hint = (usb or {}).get("fixture_hint")
-            if hint in KNOWN_BRIDGES:
-                continue
+            if hint in KNOWN_BRIDGES and not p.get("bridge_override"):
+                continue  # explicit page override is the ONLY path onto a bridge
             if (p.get("auto_attempted") and hint
                     and (STATE["roster"].get(hint) or {}).get("flashed")):
                 p["flash_requested"] = False
                 continue  # ambush never re-flashes a finished light; a human
                           # click (no auto_attempted) still can, deliberately
-            if not hint and not (time.time() < AUTO.get("ambush_until", 0)):
-                continue  # normally wait for identity; AMBUSH can't afford to —
-                          # the wake window is ~9 s and esptool must connect first
+            if not hint:
+                continue  # NO UPLOAD WITHOUT IDENTITY — ever (Elliot: "we never
+                          # want to flash the bridge with the light firmware").
+                          # The ambush PIN already fired on appearance and holds
+                          # the chip awake in ROM, so identity always resolves
+                          # within ~5 s; the upload waits those seconds.
             if now - p.get("pinned_at", 0) < 10:
                 continue  # let the pin finish + release the port; chip is
                           # parked in ROM and cannot escape while it waits
@@ -704,6 +707,10 @@ let s_roster = {};
 let s_checkups = {};
 let s_bridges = [];
 async function doflash(dev){ await fetch("/flash",{method:"POST",body:JSON.stringify({dev})}); tick(); }
+async function flashBridge(dev, fid){
+  if(!confirm("⚠ "+fid+" is a BRIDGE. Flashing FIXTURE firmware onto it turns it into a light and kills the fleet dashboard feed until bridge firmware is rebuilt. Really flash it?")) return;
+  await fetch("/flash",{method:"POST",body:JSON.stringify({dev, override_bridge:true})}); tick();
+}
 async function docheck(dev){ await fetch("/checkup",{method:"POST",body:JSON.stringify({dev})}); tick(); }
 async function ambush(min){ await fetch("/ambush",{method:"POST",body:String(min)}); tick(); }
 function excluded_note(e){ return e.counted === false; }
@@ -716,9 +723,11 @@ async function setAside(fid){
 function liveCard(dev,p,r){
   const hint0 = (p.usb||{}).fixture_hint;
   if(hint0 && s_bridges.includes(hint0)){
-    return `<div class="cardp connected"><h3>🌉 BRIDGE ${hint0}</h3><span class="chip connected">BRIDGE</span>
+    const st = p.flashing? `<span class="chip partial">⚡ FLASHING (override)</span>` : p.flash_requested? `<span class="chip partial">queued (override)</span>` : `<span class="chip connected">BRIDGE</span>`;
+    return `<div class="cardp connected"><h3>🌉 BRIDGE ${hint0}</h3>${st}
       <div class="kv">mac <span class="mono">${(p.usb||{}).serial||""}</span></div>
-      <div class="kv" style="color:var(--green)">protected — never flashed · feeding the fleet dashboard at :8765</div></div>`;
+      <div class="kv" style="color:var(--green)">protected — never auto-flashed · feeding the fleet dashboard at :8765</div>
+      ${p.flashing||p.flash_requested? "" : `<div style="margin-top:8px"><button class="ex" style="color:var(--red);border-color:var(--red)" onclick="flashBridge('${dev}','${hint0}')">⚠ flash as fixture (override)</button></div>`}</div>`;
   }
   const flashing = p.flashing && !r;
   const cls = r? r.verdict.toLowerCase() : flashing? "partial" : "connected";
@@ -960,12 +969,16 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, KeyError):
                 self._send('{"ok":false}', "application/json")
                 return
+            override = bool(body.get("override_bridge"))
             with LOCK:
                 p = STATE["ports"].get(dev)
+                hint = (p.get("usb") or {}).get("fixture_hint") if p else None
                 ok = bool(p and p["present"]
-                          and (p.get("usb") or {}).get("fixture_hint") not in KNOWN_BRIDGES)
+                          and (hint not in KNOWN_BRIDGES or override))
                 if ok:
                     p["flash_requested"] = True
+                    if override:
+                        p["bridge_override"] = True
             self._send(json.dumps({"ok": ok}), "application/json")
         elif self.path.startswith("/name"):
             try:
