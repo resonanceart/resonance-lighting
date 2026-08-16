@@ -199,9 +199,17 @@ static void quietIdleFrame(FrameBuffer &f, uint16_t pixels, uint32_t now) {
   // after ten seconds it should blink blue twice... keep doing that so we
   // know it is working"): dim-red idle with a blue double-blink every 10 s.
   // 200 ms on/off windows so the 100 ms render cadence catches every edge.
+  // Day Zero v2 (Elliot: "we need a custom light signature per light"): the
+  // heartbeat double-blink IS the signature — each light pops its own
+  // MAC-derived color, so the working-tell also identifies the light.
   uint32_t phase = now % 10000;
   if (phase < 200 || (phase >= 400 && phase < 600)) {
-    for (uint16_t i = 0; i < f.count; i++) f.px[i][2] = 255;
+    uint8_t h = (uint8_t)((gMyId[0] * 7 + gMyId[1] * 13 + gMyId[2] * 31) % 12);
+    for (uint16_t i = 0; i < f.count; i++) {
+      f.px[i][0] = PAL[h][0];
+      f.px[i][1] = PAL[h][1];
+      f.px[i][2] = PAL[h][2];
+    }
   } else {
     for (uint16_t i = 0; i < f.count; i++) f.px[i][0] = 24;
   }
