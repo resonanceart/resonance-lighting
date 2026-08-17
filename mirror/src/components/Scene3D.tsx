@@ -65,7 +65,6 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const [nodes, setNodes] = useState<SolvedNode[]>([])
   const [plSlots, setPlSlots] = useState<PlSlot[]>([])
   const [rings, setRings] = useState<{ light: number; rope: number } | null>(null)
-  const [stations, setStations] = useState<[number, number, number][]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [slotSel, setSlotSel] = useState<string | null>(null)
   const [seatPick, setSeatPick] = useState<string>('')
@@ -93,16 +92,9 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
       .then((r) => r.json())
       .then(
         (j: {
-          worksite_rings: { light_ring: { r_m: number; stations_az_deg: number[] }; rope: { r_m: number } }
+          worksite_rings: { light_ring: { r_m: number }; rope: { r_m: number } }
         }) => {
-          const lr = j.worksite_rings.light_ring
-          setRings({ light: lr.r_m, rope: j.worksite_rings.rope.r_m })
-          setStations(
-            lr.stations_az_deg.map((az) => {
-              const a = (az * Math.PI) / 180
-              return [lr.r_m * Math.cos(a), 0.05, -lr.r_m * Math.sin(a)] as [number, number, number]
-            }),
-          )
+          setRings({ light: j.worksite_rings.light_ring.r_m, rope: j.worksite_rings.rope.r_m })
         },
       )
       .catch(() => setRings(null))
@@ -153,32 +145,31 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
           <TreeModel />
         </Suspense>
 
+        {/* Rings only — no station markers: the pole structures are in the
+            model itself, and extra spheres read as lights (Elliot). */}
         {rings && (
           <>
             <GroundRing r={rings.light} opacity={0.5} />
             <GroundRing r={rings.rope} opacity={0.25} />
-            {stations.map((p, i) => (
-              <mesh key={i} position={p}>
-                <sphereGeometry args={[0.22, 12, 12]} />
-                <meshBasicMaterial color="#7b8aa3" transparent opacity={0.7} />
-              </mesh>
-            ))}
           </>
         )}
 
-        {/* assignable perimeter slots — tap to seat (two per station) */}
+        {/* assignable perimeter slots — SOCKETS, not lights: empty = hollow
+            ring; occupied = no marker (the seated light itself renders) */}
         {plSlots.map((s) => {
           const occupied = macBySlot.has(s.id)
           return (
             <group key={s.id} position={s.p}>
-              <mesh>
-                <sphereGeometry args={[occupied ? 0.3 : 0.2, 12, 12]} />
-                <meshBasicMaterial
-                  color={slotSel === s.id ? '#5b8cff' : occupied ? '#dbe4f0' : '#7b8aa3'}
-                  transparent
-                  opacity={occupied ? 1 : 0.75}
-                />
-              </mesh>
+              {!occupied && (
+                <mesh rotation-x={-Math.PI / 2}>
+                  <torusGeometry args={[0.24, 0.045, 8, 24]} />
+                  <meshBasicMaterial
+                    color={slotSel === s.id ? '#5b8cff' : '#7b8aa3'}
+                    transparent
+                    opacity={slotSel === s.id ? 1 : 0.7}
+                  />
+                </mesh>
+              )}
               <mesh
                 onClick={(e) => {
                   e.stopPropagation()
