@@ -38,18 +38,25 @@ export function EditPanel({ pageId }: { pageId: string }) {
 
   return (
     <aside className="edit-panel">
-      <h2>Add a widget</h2>
-      <div className="palette">
-        {allWidgetDefs().map((d) => (
-          <button key={d.type} className="palette-item" onClick={() => addWidget(pageId, d.type)}>
-            <span className="palette-head">
-              <span aria-hidden>{d.icon}</span> {d.title}
-              <span className={`tier tier-${d.tier.toLowerCase()}`}>{d.tier}</span>
-            </span>
-            <span className="muted small">{d.description}</span>
-          </button>
-        ))}
-      </div>
+      <h2>Components</h2>
+      {allWidgetDefs().length === 0 ? (
+        <p className="muted small">
+          None adopted yet — features are pulled in one at a time, by name, from Ben's tested tools and the
+          original controller. Ask for one and it appears here.
+        </p>
+      ) : (
+        <div className="palette">
+          {allWidgetDefs().map((d) => (
+            <button key={d.type} className="palette-item" onClick={() => addWidget(pageId, d.type)}>
+              <span className="palette-head">
+                <span aria-hidden>{d.icon}</span> {d.title}
+                <span className={`tier tier-${d.tier.toLowerCase()}`}>{d.tier}</span>
+              </span>
+              <span className="muted small">{d.description}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <h2>This page</h2>
       <div className="page-controls">

@@ -54,7 +54,6 @@ interface SlotRec {
 export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const seats = useMirror((s) => s.seats)
   const unpinSeat = useMirror((s) => s.unpinSeat)
-  const send = useMirror((s) => s.send)
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
   const [slots, setSlots] = useState<SlotRec[]>([])
@@ -201,10 +200,9 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
             {sel.rssi !== 0 ? `${sel.rssi} dBm · ` : ''}
             {sel.fwRev}
           </p>
+          {/* No commands on the card — the Mirror only listens until a
+              command feature is explicitly pulled in. */}
           <div className="row-gap">
-            <button className="btn-accent" onClick={() => send({ verb: 'NB_IDENTIFY', target: sel.fixtureId })}>
-              Blink it
-            </button>
             {selNode.pinned && (
               <button className="btn-line" onClick={() => unpinSeat(sel.fixtureId)}>
                 Unpin
