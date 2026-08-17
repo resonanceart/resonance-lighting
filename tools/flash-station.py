@@ -834,7 +834,7 @@ padding:26px;text-align:center}
 <b>④ After PASS:</b> the station auto-reboots it into the new firmware. Dark is normal for a parked board — it needs ≥3.10 V + 60 s of healthy charge, then reboots itself to <b>steady red</b>. Don't touch it while it climbs; every reset restarts its clock.<br>
 <b>⑤ Red = done.</b> Tap ✔ RED confirmed, unplug, next light.<br>
 <b>⑥ Still nothing after ②–③ with a good cable on a direct port?</b> Hardware pile (dead cell / BMS lockout / lead) — that's a multimeter job, not a flashing job.</p>
-<p class="note">PASS comes from the batch tool's evidence JSONL and the light's own report-back (serial + WiFi). The CoreS3 bridge is auto-protected (never flashed) — plug it in anytime for live mesh badges. 🩺 CHECKUP tests each component the board carries: battery, charger, LED rail, radio, motion, ToF, pressure/temp, solenoid. (No fixture carries a laser.)</p>
+<p class="note">PASS comes from the batch tool's evidence JSONL and the light's own report-back (serial + WiFi). The CoreS3 bridge is auto-protected (never flashed) — plugging it in launches BEN'S fleet dashboard at :8765 (bridge-dashboard-waiter); the station leaves bridge serial alone. 🩺 CHECKUP tests each component the board carries: battery, charger, LED rail, radio, motion, ToF, pressure/temp, solenoid. (No fixture carries a laser.)</p>
 <script>
 const HOLD = %%HOLD%%;
 const MY_BOOT = "%%BOOT%%";   // page auto-reloads when the server restarts,
