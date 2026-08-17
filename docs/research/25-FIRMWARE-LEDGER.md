@@ -43,6 +43,14 @@ during sleep — solar resumes at sunrise.
 | `E39F1C` (Justin/ours) | `cores3-bridge-2026-08-16.1` | flashed by Ben 08-16 |
 | `E39A34` (our bench, 3rd) | `cores3-bridge-2026-08-15.1` | drives Ben's dashboard :8765 on our bench |
 
+**Our bench rebuild of the fleet standard: `fx-260817-e70cb86-b`** (2026-08-17, Elliot-directed)
+- built once from Ben's fleet-standard source commit `e70cb86` (flags verified in
+  build.options.json: commission · ch 11 · basic-listener · precharge 300); binary SHA-256
+  `a48723ab…4824ae3`, 1,155,616 B (Ben's is 1,175,648 B — toolchain delta, his Windows bench core).
+- **NOT Ben's artifact** — never call it `ec7f28d`; his census lists this rev as foreign. Staged as
+  the default ⚡ package on the flash station (:8940 FIRMWARE panel; artifact dir in the
+  resonance-fleet-dash worktree, ignored/uncommitted).
+
 **USB-commissioning image for new/rescue boards: `fx-260816-prtrel1-b`**
 - Ben's artifact SHA-256 `6305E971…` — our 08-16 bench rebuild was a **different binary** that
   self-IDs `fx-260816-cef34a4-b` (allowed per handoff, but never quote "prtrel1" for our uploads).
