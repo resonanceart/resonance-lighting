@@ -166,36 +166,22 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
     }
   }
 
-  // Emit: placeable at solved positions; the rest in the staging FIELD,
-  // SELF-LOCATED by the lights with the signal that exists today: each
-  // staged light sits at its real RSSI-derived range from the listening
-  // post (the bridge). Radius = measured; bearing = stable-arbitrary (id
-  // hash) until cross-light data exists. When NB_NEIGHBOR_REPORT goes
-  // live, the full relative solve replaces this — data upgrade, no rework.
+  // Emit ONLY lights with a legitimate position: a human seat, or (once
+  // NB_NEIGHBOR_REPORT exists) a genuine multi-link solve. A heard light
+  // with neither gets NO coordinates — it is a count, never a dot. (The
+  // earlier RSSI-range staging fan was retired 2026-08-17: real radius +
+  // arbitrary bearing still READS as a location, and that is a lie of
+  // composition.)
   const out: SolvedNode[] = []
   for (const f of heard) {
     const id = f.fixtureId
     if (placeable.has(id)) {
       const p = pos.get(id)!
       out.push({ id, x: p.x, y: p.y, pinned: Boolean(seats[id]), placed: true })
-    } else {
-      const rM = f.rssi !== 0 ? Math.min(STAGE_MAX_R_M, 0.35 * rssiToMeters(f.rssi)) : STAGE_MAX_R_M
-      const a = seeded(id, 3) * Math.PI * 2
-      out.push({
-        id,
-        x: STAGE_POST.x + rM * Math.cos(a),
-        y: STAGE_POST.y + rM * Math.sin(a),
-        pinned: false,
-        placed: false,
-      })
     }
   }
   return out
 }
-
-/** The staging field's listening post (the bridge), world metres. */
-export const STAGE_POST = { x: 0, y: 20.5 }
-export const STAGE_MAX_R_M = 5.5
 
 /** Drop all solver momentum (after layout import/reset). */
 export function resetSolver(): void {

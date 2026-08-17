@@ -3,42 +3,36 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls, useGLTF } from '@react-three/drei'
 import { Box3, Vector3 } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import { solveTick, STAGE_POST, STAGE_MAX_R_M, type SolvedNode } from '../lib/locate'
+import { solveTick, type SolvedNode } from '../lib/locate'
 import { useMirror } from '../lib/store'
 import type { Telemetry } from '../lib/types'
 
 /**
- * The 3-D stage — THE SAME ORBIT as the original controller, adopted
- * verbatim: Canvas camera [40, 30, 60] fov 45 near 0.1 far 5000, drei
- * OrbitControls makeDefault + enableDamping (App.tsx:95 / Scene.tsx:291 in
- * the twin). Drag to orbit, right-drag/two-finger to pan, wheel/pinch to
- * zoom — identical feel.
+ * The 3-D stage — the original controller's orbit, verbatim (camera
+ * [40,30,60] fov 45, drei OrbitControls makeDefault enableDamping).
  *
- * Coordinates: designed data is Blender Z-up metres; three.js is Y-up. The
- * twin's conversion is [x, z, -y] and we use exactly that. Lights render as
- * neutral dots; the staging field's radius-is-real/bearing-is-layout honesty
- * is unchanged from the plan view.
+ * TRUTH RULE (Elliot, 2026-08-17): a light appears in the world ONLY when it
+ * has a legitimate position — seated by a human onto a slot, or (future,
+ * packet 22) genuinely self-located. Heard-but-unlocated lights are a COUNT
+ * in the status line, never dots in space. There is no staging blob.
+ *
+ * Seating is slot-first per Elliot's directive: each perimeter pole station
+ * carries TWO assignable slots (PL-NN-A/B). Tap a slot → pick which heard
+ * light hangs there. The MAC↔slot bindings are the Mirror's own layer
+ * (localStorage), outside the LX gate; a future F-id re-key is a rename.
  */
 
 const BLENDER_TO_THREE = ([x, y, z]: number[]): [number, number, number] => [x, z, -y]
 
 function TreeModel() {
-  // worksite-tree.glb = Ed's model + uplights + pole stations + rope stakes,
-  // true metres (blender lane 6a0216f) — same lineage as footprint + slots.
-  // Replaced the old treev4 tree-context.glb (junk roof/ref meshes).
+  // worksite-tree.glb — Ed's model, source-fixed true metres (a6f5483).
   const { scene } = useGLTF('/worksite-tree.glb')
-  // The twin's staleUnitsScale guard, retuned for the worksite model: its
-  // LEGITIMATE span is 40.18 m (rope ring ×2, verified by blender lane), so
-  // only a genuinely 10x-stale export (>90 m) triggers the rescue scale.
+  // Units guard, measured against the known 40.18 m worksite span:
+  // >90 m → 10x-stale export ×0.1 · <5 m → inch-wrapper double-applied ×39.37.
+  // Dormant on the fixed asset; kept as defense.
   const scale = useMemo(() => {
     const size = new Box3().setFromObject(scene).getSize(new Vector3())
     const maxDim = Math.max(size.x, size.y, size.z)
-    console.info('[mirror:glb] worksite-tree bbox', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2))
-    // Units guard, measured against the known 40.18 m worksite span:
-    //  >90 m  → 10x-stale export, rescue ×0.1
-    //  <5 m   → inch-wrapper double-applied (exporter already wrote metres,
-    //           then ×0.0254 again → arrives at 1/39.37) — undo it.
-    //           Flagged to blender-architect; shim until the asset is fixed.
     if (maxDim > 90) return 0.1
     if (maxDim < 5) return 39.37
     return 1
@@ -46,50 +40,55 @@ function TreeModel() {
   return <primitive object={scene} scale={scale} />
 }
 
-function GroundRing({ r, color, opacity, dashed }: { r: number; color: string; opacity: number; dashed?: boolean }) {
-  // Flat ring on the ground plane. (Dashed look approximated with segments
-  // is not worth the complexity — opacity carries the hierarchy.)
-  void dashed
+function GroundRing({ r, opacity }: { r: number; opacity: number }) {
   return (
     <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, 0]}>
       <ringGeometry args={[r - 0.06, r + 0.06, 160]} />
-      <meshBasicMaterial color={color} transparent opacity={opacity} />
+      <meshBasicMaterial color="#7b8aa3" transparent opacity={opacity} />
     </mesh>
   )
 }
 
-interface SlotRec {
+/** Assignable perimeter slot (Elliot: two per pole station). */
+interface PlSlot {
   id: string
+  station: string
+  plan: { x: number; y: number }
   p: [number, number, number]
-  stale: boolean
 }
 
 export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const seats = useMirror((s) => s.seats)
+  const pinSeat = useMirror((s) => s.pinSeat)
   const unpinSeat = useMirror((s) => s.unpinSeat)
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
-  const [slots, setSlots] = useState<SlotRec[]>([])
-  const [stations, setStations] = useState<[number, number, number][]>([])
+  const [plSlots, setPlSlots] = useState<PlSlot[]>([])
   const [rings, setRings] = useState<{ light: number; rope: number } | null>(null)
+  const [stations, setStations] = useState<[number, number, number][]>([])
   const [selected, setSelected] = useState<string | null>(null)
+  const [slotSel, setSlotSel] = useState<string | null>(null)
+  const [seatPick, setSeatPick] = useState<string>('')
   const controls = useRef<OrbitControlsImpl>(null)
   const latest = useRef(telemetry)
   latest.current = telemetry
 
+  // Assignable perimeter slots — worksite table, perimeter class only
+  // (the rest of the table is LX-gated and not shipped).
   useEffect(() => {
-    fetch('/fixtures.json')
+    fetch('/perimeter_slots.json')
       .then((r) => r.json())
-      .then((j: { fixtures: { fixture_id: string; role: string; position: number[] }[] }) => {
-        setSlots(
-          j.fixtures.map((f) => ({
-            id: f.fixture_id,
-            p: BLENDER_TO_THREE(f.position),
-            stale: f.role === 'perimeter',
+      .then((j: { slots: { id: string; pos_m: number[] }[] }) => {
+        setPlSlots(
+          j.slots.map((s) => ({
+            id: s.id,
+            station: s.id.slice(0, 5), // PL-NN
+            plan: { x: s.pos_m[0], y: s.pos_m[1] },
+            p: BLENDER_TO_THREE(s.pos_m),
           })),
         )
       })
-      .catch(() => setSlots([]))
+      .catch(() => setPlSlots([]))
     fetch('/tree_footprint.json')
       .then((r) => r.json())
       .then(
@@ -116,16 +115,34 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
     return () => clearInterval(t)
   }, [])
 
-  const placed = nodes.filter((n) => n.placed)
-  const staging = nodes.filter((n) => !n.placed)
-  const pinnedN = nodes.filter((n) => n.pinned)
+  const zBySlot = useMemo(() => new Map(plSlots.map((s) => [s.id, s.p[1]])), [plSlots])
+  const macBySlot = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const [mac, seat] of Object.entries(seats)) if (seat.slot) m.set(seat.slot, mac)
+    return m
+  }, [seats])
+
+  const seated = nodes.filter((n) => n.pinned)
+  const located = nodes.filter((n) => n.placed && !n.pinned)
+  const unlocated = telemetry.fixtures.length - nodes.length
   const sel = selected ? telemetry.fixtures.find((f) => f.fixtureId === selected) : undefined
   const selNode = selected ? nodes.find((n) => n.id === selected) : undefined
+  const slot = slotSel ? plSlots.find((s) => s.id === slotSel) : undefined
+  const slotMac = slot ? macBySlot.get(slot.id) : undefined
+  const unseatedHeard = telemetry.fixtures.filter((f) => !seats[f.fixtureId]).map((f) => f.fixtureId)
+
+  const seatIt = () => {
+    if (!slot || !seatPick) return
+    pinSeat(seatPick, slot.plan.x, slot.plan.y, slot.id)
+    setSeatPick('')
+    setSlotSel(null)
+  }
 
   return (
     <div className="scene3d">
       <p className="stage-status mono small">
-        {telemetry.fixtures.length} heard · {placed.length} placed · {staging.length} staging · {pinnedN.length} fixed
+        {telemetry.fixtures.length} heard · {unlocated} not yet located · {located.length} self-located ·{' '}
+        {seated.length} seated
       </p>
 
       <Canvas camera={{ position: [40, 30, 60], fov: 45, near: 0.1, far: 5000 }}>
@@ -138,8 +155,8 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
 
         {rings && (
           <>
-            <GroundRing r={rings.light} color="#7b8aa3" opacity={0.5} />
-            <GroundRing r={rings.rope} color="#7b8aa3" opacity={0.25} />
+            <GroundRing r={rings.light} opacity={0.5} />
+            <GroundRing r={rings.rope} opacity={0.25} />
             {stations.map((p, i) => (
               <mesh key={i} position={p}>
                 <sphereGeometry args={[0.22, 12, 12]} />
@@ -149,44 +166,55 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
           </>
         )}
 
-        {/* designed slots at their true 3-D positions */}
-        {slots.map((s) => (
-          <mesh key={s.id} position={s.p}>
-            <sphereGeometry args={[0.11, 10, 10]} />
-            <meshBasicMaterial color={s.stale ? '#ff5b6e' : '#7b8aa3'} transparent opacity={s.stale ? 0.25 : 0.5} />
-          </mesh>
-        ))}
+        {/* assignable perimeter slots — tap to seat (two per station) */}
+        {plSlots.map((s) => {
+          const occupied = macBySlot.has(s.id)
+          return (
+            <group key={s.id} position={s.p}>
+              <mesh>
+                <sphereGeometry args={[occupied ? 0.3 : 0.2, 12, 12]} />
+                <meshBasicMaterial
+                  color={slotSel === s.id ? '#5b8cff' : occupied ? '#dbe4f0' : '#7b8aa3'}
+                  transparent
+                  opacity={occupied ? 1 : 0.75}
+                />
+              </mesh>
+              <mesh
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelected(null)
+                  setSlotSel(s.id === slotSel ? null : s.id)
+                }}
+              >
+                <sphereGeometry args={[0.9, 8, 8]} />
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+              </mesh>
+            </group>
+          )
+        })}
 
-        {/* the staging field's listening post + outer range ring */}
-        {staging.length > 0 && (
-          <group position={[STAGE_POST.x, 0, -STAGE_POST.y]}>
-            <mesh position={[0, 0.35, 0]}>
-              <cylinderGeometry args={[0.12, 0.12, 0.7, 10]} />
-              <meshBasicMaterial color="#7b8aa3" />
-            </mesh>
-            <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, 0]}>
-              <ringGeometry args={[STAGE_MAX_R_M - 0.04, STAGE_MAX_R_M + 0.04, 96]} />
-              <meshBasicMaterial color="#7b8aa3" transparent opacity={0.25} />
-            </mesh>
-          </group>
-        )}
-
-        {/* heard lights — neutral dots, world plan (x,y) → three (x, h, -y) */}
-        {nodes.map((n) => (
-          <mesh
-            key={n.id}
-            position={[n.x, n.placed ? 0.6 : 0.25, -n.y]}
-            onClick={(e) => {
-              e.stopPropagation()
-              setSelected(n.id === selected ? null : n.id)
-            }}
-          >
-            <sphereGeometry args={[n.placed ? 0.32 : 0.24, 14, 14]} />
-            <meshBasicMaterial
-              color={selected === n.id ? '#5b8cff' : n.placed ? '#dbe4f0' : '#7b8aa3'}
-            />
-          </mesh>
-        ))}
+        {/* lights with legitimate positions only (seated / self-located) */}
+        {nodes.map((n) => {
+          const h = seats[n.id]?.slot ? (zBySlot.get(seats[n.id].slot!) ?? 0.6) : 0.6
+          return (
+            <group key={n.id} position={[n.x, h, -n.y]}>
+              <mesh>
+                <sphereGeometry args={[0.32, 14, 14]} />
+                <meshBasicMaterial color={selected === n.id ? '#5b8cff' : '#dbe4f0'} />
+              </mesh>
+              <mesh
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSlotSel(null)
+                  setSelected(n.id === selected ? null : n.id)
+                }}
+              >
+                <sphereGeometry args={[0.8, 8, 8]} />
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+              </mesh>
+            </group>
+          )
+        })}
 
         <OrbitControls ref={controls} makeDefault enableDamping />
       </Canvas>
@@ -195,30 +223,64 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
         <button aria-label="Reset view" onClick={() => controls.current?.reset()}>⌂</button>
       </div>
 
-      {sel && selNode && (
+      {slot && (
+        <div className="light-card">
+          <div className="light-card-head">
+            <span className="mono">{slot.id}</span>
+            <span className="muted small">station {slot.station} · {slot.id.endsWith('A') ? 'CCW' : 'CW'} pole side</span>
+          </div>
+          {slotMac ? (
+            <>
+              <p className="muted small">
+                Seated: <span className="mono">{slotMac}</span>
+              </p>
+              <div className="row-gap">
+                <button className="btn-line danger-text" onClick={() => { unpinSeat(slotMac); setSlotSel(null) }}>
+                  Unseat
+                </button>
+                <button className="btn-line" onClick={() => setSlotSel(null)}>Close</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="source-live">
+                <select value={seatPick} onChange={(e) => setSeatPick(e.target.value)} aria-label="Pick a heard light">
+                  <option value="">Pick a heard light…</option>
+                  {unseatedHeard.map((id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn-accent" onClick={seatIt} disabled={!seatPick}>
+                  Seat
+                </button>
+              </div>
+              <p className="muted small">{unseatedHeard.length} heard lights not yet seated.</p>
+              <div className="row-gap">
+                <button className="btn-line" onClick={() => setSlotSel(null)}>Close</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {sel && selNode && !slot && (
         <div className="light-card">
           <div className="light-card-head">
             <span className="mono">{sel.fixtureId}</span>
             <span className="muted small">
-              {seats[sel.fixtureId]?.slot
-                ? `seated at ${seats[sel.fixtureId].slot}`
-                : selNode.placed
-                  ? selNode.pinned
-                    ? 'fixed point'
-                    : 'self-placed'
-                  : 'staging'}
+              {seats[sel.fixtureId]?.slot ? `seated at ${seats[sel.fixtureId].slot}` : 'self-located'}
             </span>
           </div>
           <p className="muted small">
             {sel.rssi !== 0 ? `${sel.rssi} dBm · ` : ''}
             {sel.fwRev}
           </p>
-          {/* No commands on the card — the Mirror only listens until a
-              command feature is explicitly pulled in. */}
           <div className="row-gap">
             {selNode.pinned && (
               <button className="btn-line" onClick={() => unpinSeat(sel.fixtureId)}>
-                Unpin
+                Unseat
               </button>
             )}
             <button className="btn-line" onClick={() => setSelected(null)}>
