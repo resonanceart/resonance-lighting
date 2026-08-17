@@ -58,7 +58,7 @@ export function FlashStation(_props: WidgetDataProps) {
   useEffect(() => {
     let alive = true
     const poll = () =>
-      fetch('/flash/state')
+      fetch('/station/state')
         .then((r) => r.json())
         .then((j: StationState) => {
           if (!alive) return
@@ -75,7 +75,7 @@ export function FlashStation(_props: WidgetDataProps) {
     }
   }, [])
 
-  if (err) return <p className="empty">Flash station unreachable on /flash — is flash-station.py running on :8940?</p>
+  if (err) return <p className="empty">Flash station unreachable on /station — is flash-station.py running on :8940?</p>
   if (!st) return <p className="empty">Listening for the flash station…</p>
 
   const roster = Object.values(st.roster ?? {})

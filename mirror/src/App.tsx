@@ -18,7 +18,13 @@ import type { Telemetry } from './lib/types'
  */
 function useTelemetry(): { telemetry: Telemetry; status: FeedStatus } {
   const dataSource = useMirror((s) => s.dataSource)
-  const [telemetry, setTelemetry] = useState<Telemetry>({ now: 0, listenWindowS: 60, fixtures: [] })
+  const [telemetry, setTelemetry] = useState<Telemetry>({
+    now: 0,
+    listenWindowS: 60,
+    serialConnected: false,
+    serialError: null,
+    fixtures: [],
+  })
   const [status, setStatus] = useState<FeedStatus>('connecting')
 
   useEffect(() => connectDashboard(dataSource.url, setTelemetry, setStatus), [dataSource.url])
@@ -51,9 +57,14 @@ export default function App() {
 
       <header className="app-head">
         <h1>Resonance Mirror</h1>
-        <span className="source-chip" title="Feed status">
-          <i className="dot" style={{ background: STATUS_DOT[status] }} />
-          {status === 'live' ? 'listening' : status}
+        {/* triple-rule: an HTTP-live feed with the serial ear down is STALE
+            data, and the chip must say so (never quietly "listening") */}
+        <span className="source-chip" title={telemetry.serialError ?? 'Feed status'}>
+          <i
+            className="dot"
+            style={{ background: status === 'live' && !telemetry.serialConnected ? 'var(--danger)' : STATUS_DOT[status] }}
+          />
+          {status === 'live' ? (telemetry.serialConnected ? 'listening' : 'ear down — stale') : status}
         </span>
         <UpdateChip />
       </header>

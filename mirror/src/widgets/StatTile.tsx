@@ -1,16 +1,17 @@
 import type { WidgetDataProps } from '../lib/types'
+import { isHeard } from '../lib/adapter'
 
 type Tel = WidgetDataProps['telemetry']
-const win = (t: Tel) => t.listenWindowS * 1000
+const earDown = (t: Tel) => (t.serialConnected ? '' : ' · EAR DOWN, stale')
 
 const METRICS: Record<string, { label: (t: Tel) => string; compute: (t: Tel) => string }> = {
   alive: {
-    label: (t) => `alive · ${t.listenWindowS}s window`,
-    compute: (t) => String(t.fixtures.filter((f) => f.lastHeardMs < win(t)).length),
+    label: (t) => `alive · ${t.listenWindowS}s window${earDown(t)}`,
+    compute: (t) => String(t.fixtures.filter((f) => isHeard(t, f)).length),
   },
   stale: {
-    label: (t) => `stale >${t.listenWindowS}s`,
-    compute: (t) => String(t.fixtures.filter((f) => f.lastHeardMs >= win(t)).length),
+    label: (t) => `stale >${t.listenWindowS}s${earDown(t)}`,
+    compute: (t) => String(t.fixtures.filter((f) => !isHeard(t, f)).length),
   },
 }
 

@@ -29,20 +29,20 @@ const bench = {
   rewrite: (p: string) => p.replace(/^\/bench/, ''),
 }
 
-// /flash → lighting-architect's flash-station.py (watch-only commissioning
-// dashboard). Same same-origin story as /bench — but GET-only: the station's
-// POST surface is bench-local and unauthenticated (contract §5 / C3 finding),
-// so the Mirror must never be a path to it.
-const flash = {
+// /station → lighting-architect's flash-station.py (watch-only commissioning
+// dashboard; name per memo 27 §6). Same same-origin story as /bench — but
+// GET-only: the station's POST surface is bench-local and unauthenticated
+// (contract §5 / C3 finding), so the Mirror must never be a path to it.
+const station = {
   target: 'http://127.0.0.1:8940',
   changeOrigin: true,
-  rewrite: (p: string) => p.replace(/^\/flash/, ''),
+  rewrite: (p: string) => p.replace(/^\/station/, ''),
   bypass: (req: { method?: string }) => (req.method !== 'GET' ? '/' : undefined),
 }
 
 export default defineConfig({
   define: { __MIRROR_COMMIT__: JSON.stringify(commit) },
   plugins: [react()],
-  server: { proxy: { '/bench': bench, '/flash': flash } },
-  preview: { proxy: { '/bench': bench, '/flash': flash } },
+  server: { proxy: { '/bench': bench, '/station': station } },
+  preview: { proxy: { '/bench': bench, '/station': station } },
 })

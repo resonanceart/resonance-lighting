@@ -58,6 +58,7 @@ function mapPeer(id: string, row: PeerRow, now: number): FixtureState {
 export function mapState(json: unknown): Telemetry {
   const root = (json ?? {}) as Record<string, unknown>
   const peers = (root.peers ?? {}) as Record<string, PeerRow>
+  const serial = (root.serial ?? {}) as Record<string, unknown>
   const now = Date.now()
   return {
     now,
@@ -65,8 +66,28 @@ export function mapState(json: unknown): Telemetry {
     // (contract §2). Must match the widgets' alive filter — the census line
     // cites this number, and a mismatched citation is a small lie.
     listenWindowS: 60,
+    serialConnected: serial.connected === true,
+    serialError: str(serial.error) ?? null,
     fixtures: Object.entries(peers).map(([id, row]) => mapPeer(id, row, now)),
   }
+}
+
+/** Freshness triple-rule (contract §2 @ 16ed84d): LIVE only when the ear is
+ *  up AND the fixture reported recently AND the row itself is fresh. GHOST =
+ *  ever-seen but stale past 6 min (memo 27 §6). Everything else = LAST-SEEN. */
+export type PeerLiveness = 'live' | 'last-seen' | 'ghost'
+const GHOST_MS = 360_000
+
+export function liveness(t: Telemetry, f: FixtureState): PeerLiveness {
+  if (t.serialConnected && f.lastHeardMs < 5000 && (f.rowAgeMs ?? Infinity) < 3000) return 'live'
+  return Math.max(f.lastHeardMs, f.rowAgeMs ?? 0) >= GHOST_MS ? 'ghost' : 'last-seen'
+}
+
+/** Heard within the labeled window — on BOTH axes, so a frozen age_ms (ear
+ *  down, HTTP still serving) can never keep a fixture "heard" forever. */
+export function isHeard(t: Telemetry, f: FixtureState): boolean {
+  const win = t.listenWindowS * 1000
+  return f.lastHeardMs < win && (f.rowAgeMs === undefined || f.rowAgeMs < win)
 }
 
 export type FeedStatus = 'connecting' | 'live' | 'error'

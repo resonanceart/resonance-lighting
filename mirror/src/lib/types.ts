@@ -88,6 +88,12 @@ export interface FixtureState {
 export interface Telemetry {
   now: number
   listenWindowS: number
+  /** serial.connected from the feed envelope. FALSE means the bridge ear is
+   *  down while HTTP keeps serving — age_ms freezes fresh forever, so the
+   *  whole fleet view renders STALE, never "0 lights" and never frozen-fresh
+   *  (freshness triple-rule, contract §2 @ 16ed84d). */
+  serialConnected: boolean
+  serialError: string | null
   fixtures: FixtureState[]
 }
 
