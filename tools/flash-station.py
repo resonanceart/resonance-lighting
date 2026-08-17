@@ -491,13 +491,13 @@ def udp_mesh_listener():
     import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # 0.0.0.0, never 127.0.0.1: the dashboard sends to 255.255.255.255 and a
+    # loopback-bound socket binds FINE but never receives LAN broadcast — it
+    # would sit deaf with no error (verified live 08-17)
     try:
-        s.bind(("127.0.0.1", 54321))
+        s.bind(("0.0.0.0", 54321))
     except OSError:
-        try:
-            s.bind(("0.0.0.0", 54321))
-        except OSError:
-            return
+        return
     while True:
         try:
             data, _ = s.recvfrom(4096)
@@ -965,7 +965,7 @@ async function tick(){
       const fresh = m && (Date.now()/1000 - m.heard_at) < 30;
       let mesh = "";
       if(fresh){
-        mesh = `<div class="kv" style="color:var(--green)">🔴 ON MESH · running <b class="mono">${m.fw||"fw n/a (short hb)"}</b> · ${(m.batt_mv/1000).toFixed(2)} V · heard ${Math.round(Date.now()/1000-m.heard_at)}s ago</div>`;
+        mesh = `<div class="kv" style="color:var(--green)">🔴 ON MESH · running <b class="mono">${m.fw||"fw n/a (short hb)"}</b> · ${(m.batt_mv/1000).toFixed(2)} V · heard ${Math.round(Date.now()/1000-m.heard_at)}s ago <span class="chip partial">BETA</span></div>`;
       } else if(m){
         mesh = `<div class="kv">last mesh contact ${fmtAge(Date.now()/1000-m.heard_at)} ago</div>`;
       }
@@ -1309,6 +1309,8 @@ def main():
           + (f" (sha {ARTIFACTS[sel]['sha256'][:16]}…)" if sel else ""))
 
     threading.Thread(target=watcher, daemon=True).start()
+    # mesh overlay = Ben's dashboard's UDP re-broadcast — zero serial contention
+    threading.Thread(target=udp_mesh_listener, daemon=True).start()
     srv = ThreadingHTTPServer((args.bind, args.http_port), Handler)
     print(f"Flash Station: http://{args.bind}:{args.http_port}  "
           f"(watching {CFG['dev_glob']}"
