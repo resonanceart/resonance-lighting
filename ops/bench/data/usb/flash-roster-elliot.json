@@ -1,0 +1,321 @@
+{
+ "9E5A74": {
+  "first_pass_at": null,
+  "fixture_id": "9E5A74",
+  "flashed": false,
+  "fw": null,
+  "last_port": "/dev/cu.usbmodem31401",
+  "last_row_at": "2026-08-16T22:36:25Z",
+  "last_verdict": "UPLOADED",
+  "mac": "D8:85:AC:9E:5A:74"
+ },
+ "9E5B34": {
+  "first_pass_at": "2026-08-16T23:24:40Z",
+  "fixture_id": "9E5B34",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144201",
+  "last_row_at": "2026-08-16T23:22:32Z",
+  "last_verdict": "UPLOADED",
+  "mac": "D8:85:AC:9E:5B:34",
+  "note": "RED confirmed by operator at 2026-08-16T23:24:40Z (via dashboard)",
+  "red_confirmed_at": "2026-08-16T23:24:40Z"
+ },
+ "9E668C": {
+  "first_pass_at": "2026-08-16T20:35:51Z",
+  "fixture_id": "9E668C",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31101",
+  "last_row_at": "2026-08-16T20:35:51Z",
+  "last_verdict": "PASS",
+  "mac": "D8:85:AC:9E:66:8C",
+  "name": "Hulk"
+ },
+ "9F0E5C": {
+  "first_pass_at": "2026-08-16T22:28:54Z",
+  "fixture_id": "9F0E5C",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31301",
+  "last_row_at": "2026-08-16T22:27:41Z",
+  "last_verdict": "UPLOADED",
+  "mac": "D8:85:AC:9F:0E:5C",
+  "name": null,
+  "note": "ambush-caught; upload hash-verified (serial verify raced ROM park); RED CONFIRMED by Elliot after single RESET tap 2026-08-16T22:28:54Z"
+ },
+ "9F2638": {
+  "first_pass_at": "2026-08-16T22:28:54Z",
+  "fixture_id": "9F2638",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31201",
+  "last_row_at": "2026-08-16T22:28:10Z",
+  "last_verdict": "UPLOADED",
+  "mac": "D8:85:AC:9F:26:38",
+  "note": "ambush-caught; upload hash-verified (serial verify raced ROM park); RED CONFIRMED by Elliot after single RESET tap 2026-08-16T22:28:54Z"
+ },
+ "9F268C": {
+  "first_pass_at": "2026-08-17T01:28:21Z",
+  "fixture_id": "9F268C",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem1301",
+  "last_row_at": "2026-08-17T01:28:21Z",
+  "last_verdict": "PASS",
+  "mac": "D8:85:AC:9F:26:8C"
+ },
+ "9F26BC": {
+  "counted": false,
+  "first_pass_at": "2026-08-16T21:22:05Z",
+  "fixture_id": "9F26BC",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31201",
+  "last_row_at": "2026-08-16T21:22:05Z",
+  "last_verdict": "PASS",
+  "mac": "D8:85:AC:9F:26:BC",
+  "name": null,
+  "note": "flashed prtrel1-b but SET ASIDE per Elliot \u2014 battery not detected (BMS lockout or lead); revive before deployment"
+ },
+ "9F2718": {
+  "first_pass_at": "2026-08-16T23:24:40Z",
+  "fixture_id": "9F2718",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144301",
+  "last_row_at": "2026-08-16T23:22:36Z",
+  "last_verdict": "UPLOADED",
+  "mac": "D8:85:AC:9F:27:18",
+  "note": "RED confirmed by operator at 2026-08-16T23:24:40Z (via dashboard)",
+  "red_confirmed_at": "2026-08-16T23:24:40Z"
+ },
+ "9F2738": {
+  "first_pass_at": "2026-08-16T23:24:40Z",
+  "fixture_id": "9F2738",
+  "flashed": true,
+  "fw": null,
+  "last_port": "/dev/cu.usbmodem144401",
+  "last_row_at": "2026-08-16T23:21:35Z",
+  "last_verdict": "UPLOADED",
+  "mac": "D8:85:AC:9F:27:38",
+  "note": "RED confirmed by operator at 2026-08-16T23:24:40Z (via dashboard)",
+  "red_confirmed_at": "2026-08-16T23:24:40Z"
+ },
+ "9F275C": {
+  "first_pass_at": "2026-08-16T20:20:02Z",
+  "fixture_id": "9F275C",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31201",
+  "last_row_at": "2026-08-16T20:20:02Z",
+  "last_verdict": "PASS",
+  "mac": "D8:85:AC:9F:27:5C",
+  "name": "Iron Man"
+ },
+ "F2B900": {
+  "first_pass_at": "2026-08-17T01:29:19Z",
+  "fixture_id": "F2B900",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144301",
+  "last_row_at": "2026-08-17T01:29:19Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:B9:00"
+ },
+ "F2BCF4": {
+  "first_pass_at": "2026-08-17T01:48:39Z",
+  "fixture_id": "F2BCF4",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem14201",
+  "last_row_at": "2026-08-17T01:48:39Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BC:F4"
+ },
+ "F2BDD4": {
+  "first_pass_at": "2026-08-17T01:29:33Z",
+  "fixture_id": "F2BDD4",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem14101",
+  "last_row_at": "2026-08-17T01:29:33Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BD:D4"
+ },
+ "F2BDFC": {
+  "first_pass_at": "2026-08-17T00:50:43Z",
+  "fixture_id": "F2BDFC",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144301",
+  "last_row_at": "2026-08-17T00:50:43Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BD:FC"
+ },
+ "F2BE20": {
+  "first_pass_at": "2026-08-16T21:21:10Z",
+  "fixture_id": "F2BE20",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31101",
+  "last_row_at": "2026-08-16T21:59:49Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BE:20",
+  "name": "Hawkeye",
+  "note": "RED CONFIRMED by Elliot 2026-08-16 ~22:0xZ after full 4-stage PROTECT release climb (3 flashes, deepest battery of batch)"
+ },
+ "F2BE48": {
+  "first_pass_at": "2026-08-16T22:05:02Z",
+  "fixture_id": "F2BE48",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31401",
+  "last_row_at": "2026-08-16T22:07:35Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BE:48"
+ },
+ "F2BEE4": {
+  "first_pass_at": "2026-08-16T20:40:12Z",
+  "fixture_id": "F2BEE4",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31301",
+  "last_row_at": "2026-08-16T20:40:12Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BE:E4",
+  "name": "Spider-Man"
+ },
+ "F2BF54": {
+  "first_pass_at": "2026-08-16T20:39:44Z",
+  "fixture_id": "F2BF54",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31201",
+  "last_row_at": "2026-08-16T20:39:44Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BF:54",
+  "name": "Captain America"
+ },
+ "F2BF60": {
+  "first_pass_at": "2026-08-17T01:49:32Z",
+  "fixture_id": "F2BF60",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem14101",
+  "last_row_at": "2026-08-17T01:49:32Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BF:60"
+ },
+ "F2BFE0": {
+  "first_pass_at": "2026-08-17T01:28:36Z",
+  "fixture_id": "F2BFE0",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem14201",
+  "last_row_at": "2026-08-17T01:28:36Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F2:BF:E0"
+ },
+ "F3FC90": {
+  "first_pass_at": "2026-08-16T20:35:46Z",
+  "fixture_id": "F3FC90",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem31401",
+  "last_row_at": "2026-08-16T20:35:46Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F3:FC:90",
+  "name": "Thor"
+ },
+ "F3FD28": {
+  "first_pass_at": "2026-08-17T01:29:04Z",
+  "fixture_id": "F3FD28",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144101",
+  "last_row_at": "2026-08-17T01:29:04Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F3:FD:28"
+ },
+ "F401DC": {
+  "first_pass_at": "2026-08-17T01:19:45Z",
+  "fixture_id": "F401DC",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144401",
+  "last_row_at": "2026-08-17T01:19:45Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F4:01:DC"
+ },
+ "F402A4": {
+  "first_pass_at": "2026-08-17T01:28:50Z",
+  "fixture_id": "F402A4",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144401",
+  "last_row_at": "2026-08-17T01:28:50Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F4:02:A4"
+ },
+ "F402A8": {
+  "first_pass_at": "2026-08-17T00:51:22Z",
+  "fixture_id": "F402A8",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144101",
+  "last_row_at": "2026-08-17T01:20:11Z",
+  "last_verdict": "UPLOADED",
+  "mac": "68:EE:8F:F4:02:A8"
+ },
+ "F40308": {
+  "first_pass_at": null,
+  "fixture_id": "F40308",
+  "flashed": false,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144201",
+  "last_row_at": "2026-08-17T00:49:51Z",
+  "last_verdict": "UPLOADED",
+  "mac": "68:EE:8F:F4:03:08"
+ },
+ "F40314": {
+  "first_pass_at": "2026-08-17T01:27:09Z",
+  "fixture_id": "F40314",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem144201",
+  "last_row_at": "2026-08-17T01:27:09Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F4:03:14"
+ },
+ "F40348": {
+  "first_pass_at": "2026-08-17T00:51:58Z",
+  "fixture_id": "F40348",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem14301",
+  "last_row_at": "2026-08-17T00:51:58Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F4:03:48"
+ },
+ "F4035C": {
+  "first_pass_at": "2026-08-17T00:51:43Z",
+  "fixture_id": "F4035C",
+  "flashed": true,
+  "fw": "fx-260816-prtrel1-b",
+  "last_port": "/dev/cu.usbmodem14201",
+  "last_row_at": "2026-08-17T00:51:43Z",
+  "last_verdict": "PASS",
+  "mac": "68:EE:8F:F4:03:5C"
+ },
+ "F40414": {
+  "first_pass_at": null,
+  "fixture_id": "F40414",
+  "flashed": false,
+  "fw": null,
+  "last_port": "/dev/cu.usbmodem14101",
+  "last_row_at": "2026-08-17T01:54:21Z",
+  "last_verdict": "UPLOADED",
+  "mac": "68:EE:8F:F4:04:14"
+ }
+}
