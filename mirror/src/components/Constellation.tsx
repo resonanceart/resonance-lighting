@@ -21,6 +21,50 @@ interface Slot {
   stale: boolean
 }
 
+/** Parsed tree_footprint.json (resonance.tree-footprint/0.1.0) — the real
+ *  tree's plan-view shape, vertex-exact from the worksite model. */
+interface Footprint {
+  canopy: string
+  trunk: string
+  rootLobes: string[]
+  lightRingR: number
+  stationsAz: number[]
+  ropeR: number
+  doorsAz: number[]
+}
+
+/** 72-bin radial profile (5° azimuth, az 0 = +x, CCW) → SVG polygon points. */
+function polyPoints(rs: number[]): string {
+  return rs
+    .map((r, i) => {
+      const a = (i * 5 * Math.PI) / 180
+      return `${(r * Math.cos(a)).toFixed(3)},${(r * Math.sin(a)).toFixed(3)}`
+    })
+    .join(' ')
+}
+
+/** Roots come as one 72-bin array with 0.0 = empty bins; split into lobes
+ *  (contiguous non-zero runs, wrap-aware). */
+function rootLobes(rs: number[]): string[] {
+  const n = rs.length
+  let start = rs.findIndex((r) => r === 0)
+  if (start === -1) return [polyPoints(rs)]
+  const lobes: string[] = []
+  let run: string[] = []
+  for (let k = 1; k <= n; k++) {
+    const i = (start + k) % n
+    if (rs[i] > 0) {
+      const a = (i * 5 * Math.PI) / 180
+      run.push(`${(rs[i] * Math.cos(a)).toFixed(3)},${(rs[i] * Math.sin(a)).toFixed(3)}`)
+    } else if (run.length) {
+      lobes.push(run.join(' '))
+      run = []
+    }
+  }
+  if (run.length) lobes.push(run.join(' '))
+  return lobes
+}
+
 const SNAP_M = 0.9
 const PERIMETER_R_M = 15.07 // Elliot's worksite spec (2026-08-16)
 const HOME = { cx: 0, cy: 6, span: 48 }
@@ -33,6 +77,7 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
   const [slots, setSlots] = useState<Slot[]>([])
+  const [fp, setFp] = useState<Footprint | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [cam, setCam] = useState(HOME)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -59,6 +104,30 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
         )
       })
       .catch(() => setSlots([]))
+  }, [])
+
+  // The real tree's shape (blender lane, vertex-exact, same datum).
+  useEffect(() => {
+    fetch('/tree_footprint.json')
+      .then((r) => r.json())
+      .then(
+        (j: {
+          profiles_r_by_azimuth: { canopy: number[]; trunk: number[]; roots: number[] }
+          worksite_rings: { light_ring: { r_m: number; stations_az_deg: number[] }; rope: { r_m: number } }
+          doors_az_deg: number[]
+        }) => {
+          setFp({
+            canopy: polyPoints(j.profiles_r_by_azimuth.canopy),
+            trunk: polyPoints(j.profiles_r_by_azimuth.trunk),
+            rootLobes: rootLobes(j.profiles_r_by_azimuth.roots),
+            lightRingR: j.worksite_rings.light_ring.r_m,
+            stationsAz: j.worksite_rings.light_ring.stations_az_deg,
+            ropeR: j.worksite_rings.rope.r_m,
+            doorsAz: j.doors_az_deg,
+          })
+        },
+      )
+      .catch(() => setFp(null)) // footprint missing = plain rings, never a crash
   }, [])
 
   // Solver at 4 Hz on the freshest snapshot.
@@ -202,9 +271,49 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
         role="application"
         aria-label="World view — drag empty space to move around the tree, pinch or scroll to zoom, drag a light to pin it"
       >
-        {/* the real perimeter ring (worksite spec) + tree canopy extent */}
-        <circle cx={0} cy={0} r={PERIMETER_R_M} className="ring" />
-        <circle cx={0} cy={0} r={5.05} className="ring ring-inner" />
+        {/* the real tree (worksite footprint) or plain rings as fallback */}
+        {fp ? (
+          <g className="footprint">
+            <circle cx={0} cy={0} r={fp.ropeR} className="ring rope" />
+            {fp.doorsAz.map((az) => {
+              const a = (az * Math.PI) / 180
+              return (
+                <line
+                  key={az}
+                  x1={(fp.ropeR - 1) * Math.cos(a)}
+                  y1={(fp.ropeR - 1) * Math.sin(a)}
+                  x2={(fp.ropeR + 1) * Math.cos(a)}
+                  y2={(fp.ropeR + 1) * Math.sin(a)}
+                  className="door"
+                  strokeWidth={u * 0.6}
+                />
+              )
+            })}
+            <circle cx={0} cy={0} r={fp.lightRingR} className="ring" />
+            {fp.stationsAz.map((az) => {
+              const a = (az * Math.PI) / 180
+              return (
+                <circle
+                  key={az}
+                  cx={fp.lightRingR * Math.cos(a)}
+                  cy={fp.lightRingR * Math.sin(a)}
+                  r={u * 1.1}
+                  className="station"
+                />
+              )
+            })}
+            {fp.rootLobes.map((pts, i) => (
+              <polygon key={i} points={pts} className="fp-roots" />
+            ))}
+            <polygon points={fp.canopy} className="fp-canopy" />
+            <polygon points={fp.trunk} className="fp-trunk" />
+          </g>
+        ) : (
+          <g>
+            <circle cx={0} cy={0} r={PERIMETER_R_M} className="ring" />
+            <circle cx={0} cy={0} r={5.05} className="ring ring-inner" />
+          </g>
+        )}
 
         {/* designed slots; stale perimeter ghosts excluded from seating */}
         {slots.map((s) => (

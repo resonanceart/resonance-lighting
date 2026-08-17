@@ -449,3 +449,14 @@ table.data tbody tr:last-child td { border-bottom: none; }
   color: var(--ink);
   font-size: 1.05rem;
 }
+
+/* ── tree footprint (worksite model, vertex-exact) ─────── */
+.fp-canopy { fill: rgba(219, 228, 240, 0.05); stroke: var(--muted); stroke-width: 0.12; }
+.fp-trunk { fill: rgba(219, 228, 240, 0.09); stroke: var(--muted); stroke-width: 0.1; }
+.fp-roots { fill: rgba(219, 228, 240, 0.04); stroke: var(--muted); stroke-width: 0.1; opacity: 0.8; }
+.ring.rope { stroke-dasharray: 0.6 0.9; opacity: 0.6; }
+.station { fill: none; stroke: var(--muted); stroke-width: 0.14; }
+.door { stroke: var(--muted); opacity: 0.8; }
+.constellation .post { fill: var(--surface-2); stroke: var(--muted); stroke-width: 0.14; }
+.range-ring { fill: none; stroke: var(--line); stroke-width: 0.08; opacity: 0.6; }
+.range-ring.outer { stroke-dasharray: 0.4 0.6; }
