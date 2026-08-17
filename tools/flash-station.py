@@ -68,9 +68,106 @@ _jsonl_offset = 0
 # Never flashes a known bridge or a fixture already recorded as flashed.
 KNOWN_BRIDGES = {"E39F1C", "4D5DB0", "E39A34"}  # CoreS3 bridges share the fixture VID/PID
 AUTO = {"armed_mah": 0, "batch": None, "last_note": "disarmed",
-        "ambush_until": 0.0}  # while set: pounce on ANY appearing port (sleepers
+        "ambush_until": 0.0,  # while set: pounce on ANY appearing port (sleepers
                               # wake USB ~9 s per ~15 min; esptool connect pins
                               # them in ROM). Do NOT plug a bridge while armed.
+        "artifact": None}     # selected flashable artifact slug (set at startup)
+
+# ── Firmware artifact registry ──────────────────────────────────────────────
+# The bench answer sheet: what this station can FLASH (a binary on this Mac)
+# and what the fleet is RUNNING (reference rows, no binary — Ben's artifacts
+# carry his WiFi credentials and never leave his bench). Truth lives in Ben's
+# LOG.md + docs/research/25-FIRMWARE-LEDGER.md; refresh both after any fetch.
+# ADR 0040: identity = fw_rev + binary SHA-256 together; never rebuild a named
+# artifact — a local rebuild gets its own slug and says whose source it holds.
+ARTIFACTS = {
+    "fx-260817-e70cb86-b": {
+        "label": "fleet-equivalent rebuild · LATEST",
+        "build_path": "~/code/resonance-fleet-dash/firmware/fixture/build/fx-260817-e70cb86-b",
+        "flashable": True,
+        "warn": ("OUR rebuild from Ben's fleet-standard source commit e70cb86 — NOT his artifact "
+                 "fx-260817-ec7f28d-b (his binary SHA 1598f550…b40f2b7). Behavior-identical source + "
+                 "flags (commission · ch 11 · basic-listener · precharge 300); Ben's census will list "
+                 "this rev as foreign — flag it in any results handoff."),
+        "behaviors": [
+            "Hardened presence wave: TMF ToF keeps per-channel closest-background, learns the installed scene over 90 confident reports; triggers only on ≥300 mm closer ×3 consecutive (4 clear reports re-arm) — a stationary rig member becomes background",
+            "Accepted presence event picks a color, persists it, forwards addressed events to the 2 strongest wave-capable neighbors; 150-hop budget + event ledger stop loops; randomized origin delay cancels simultaneous starts",
+            "Idle (no lease) = quiet class default: canopy/downlight warm-white 128 · 37-px perimeter HEX red 16 · RGB trunk/uplight red 128",
+            "Bridge identify/tag leases + local power protection override everything; radio, sensors, telemetry, DIRECT stream stay fully live",
+        ],
+    },
+    "fx-260816-prtrel1-b": {
+        "label": "USB rescue / PROTECT-release",
+        "build_path": "~/code/resonance-usb-rescue/firmware/fixture/build/fx-260816-prtrel1-b",
+        "flashable": True,
+        "warn": ("our 08-16 rebuild self-IDs fx-260816-cef34a4-b on serial — allowed per handoff, "
+                 "never quote 'prtrel1' for our uploads"),
+        "behaviors": [
+            "Bringup sequence: 8 MB flash / 2 MB PSRAM preflight → exact upload → guarded PROTECT clear → automatic clean software reboot → channel-11 ESP-NOW up → steady red",
+            "Tool PASS ≠ released: guard_stage + a real charging window is the truth; dark + PASS = charging — never re-flash (F40414: 3 identical uploads changed nothing)",
+            "Bare boards report battery_present=false — commissioning-legit, not a fault",
+        ],
+    },
+    "fx-260817-ec7f28d-b": {
+        "label": "FLEET STANDARD (Ben) · 71 fixtures",
+        "flashable": False,
+        "behaviors": [
+            "Ben's artifact from the SAME source (e70cb86) as our rebuild above — binary SHA 1598f550…b40f2b7, 1,175,648 B; built once, lives only on Ben's bench",
+            "71 fixtures accepted it 08-17 (70 batch + canary F40364), evidence-gated per ADR 0040 §6",
+            "Fleet took an addressed 8 h bedtime 23:16 PDT → woke ~07:16 PDT 08-17; chargers stay autonomous through sleep",
+        ],
+    },
+    "fx-260817-29ac840-b": {
+        "label": "self-identifying recovery (superseded)",
+        "flashable": False,
+        "behaviors": [
+            "STEMMA class census in heartbeat: raw sensor signature + derived class + mismatch guard; class 4 / sensor bits 0 on a powered fixture ⇒ physical STEMMA reseat (11 known)",
+            "Safe deep-cell recovery: BQ 30 mA discharge presence-test before any 2.2–2.5 V recovery; 100 mA cap, loads parked, until ≥2.55 V held 60 s — a deep light dark on good USB is CORRECT here",
+            "Tag lease: renewable addressed steady-green at 128; local power veto wins",
+        ],
+    },
+    "fx-260816-19c6bbb-b": {
+        "label": "300 mA precharge + solenoid policy v1",
+        "flashable": False,
+        "behaviors": [
+            "Universal 300 mA precharge default; deep-trio recovery proven (+240…+295 mA on USB)",
+            "Solenoid capability universal via one-time NVS migration; armed idle = D7 high-Z (433 MHz manual path preserved); strikes stay addressed + fully gated",
+        ],
+    },
+    "fx-260816-otafix1-b": {
+        "label": "PROTECT-recovery fix · 3 fixtures still hold it",
+        "flashable": False,
+        "behaviors": [
+            "TRAP: in-RAM park flag doesn't clear on recovery — climbs PROTECT→FULL with led_rail_on=false + sensors dead until a SOFTWARE reboot; physical RESET can re-park. Prefer USB-installing prtrel1-b",
+        ],
+    },
+}
+BRIDGE_FW_NOTE = ("Bridges: 4D5DB0 = cores3-bridge-2026-08-17.1 (dark-lease grammar B<sec>/b) · "
+                  "E39F1C = 08-16.1 · bench E39A34 = 08-15.1 — the new dashboard's dark-lease "
+                  "button is INERT through our E39A34 until a bridge reflash (Ben's call).")
+
+
+def init_artifacts():
+    """Resolve flashable artifact dirs; identity = measured SHA, not a label."""
+    default = None
+    for slug, a in ARTIFACTS.items():
+        if not a.get("flashable"):
+            continue
+        path = os.path.abspath(os.path.expanduser(a["build_path"]))
+        binary = os.path.join(path, "fixture.ino.bin")
+        a["abs_path"] = path
+        a["available"] = os.path.isfile(binary)
+        if a["available"]:
+            import hashlib
+            h = hashlib.sha256()
+            with open(binary, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+            a["sha256"] = h.hexdigest()
+            a["bytes"] = os.path.getsize(binary)
+            if default is None:
+                default = slug  # registry order: newest flashable first
+    AUTO["artifact"] = default
 
 
 def autoflash_tick():
@@ -80,6 +177,10 @@ def autoflash_tick():
     setting; nothing fires without a per-light click."""
     if not CFG["rescue_dir"]:
         return
+    art_slug = AUTO.get("artifact") or ""
+    art = ARTIFACTS.get(art_slug, {})
+    if not art.get("available"):
+        return  # no staged binary — queued clicks stay queued; page shows why
     b = AUTO["batch"]
     if b and b["proc"].poll() is None:
         return  # a batch is running; new plugs join the next one
@@ -147,9 +248,9 @@ def autoflash_tick():
     mah = AUTO["armed_mah"] or 15000
     cmd = ["python3", CFG["shim"], "commission",
            "--out", CFG["jsonl"], "--append",
-           "--build-path", "firmware/fixture/build/fx-260816-prtrel1-b",
+           "--build-path", art["abs_path"],
            "--sketch-dir", "fixture",
-           "--expect-fw", "fx-260816-prtrel1-b",
+           "--expect-fw", art_slug,
            "--expect-count", str(len(ready)),
            "--ports", *ready,
            "--max-parallel", str(len(ready)),
@@ -161,7 +262,7 @@ def autoflash_tick():
     proc = subprocess.Popen(cmd, cwd=CFG["rescue_dir"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     AUTO["batch"] = {"proc": proc, "ports": ready, "started": now}
-    AUTO["last_note"] = f"flashing {len(ready)}: " + ", ".join(
+    AUTO["last_note"] = f"flashing {len(ready)} with {art_slug}: " + ", ".join(
         d.split("/")[-1] for d in ready)
 
 
@@ -228,9 +329,14 @@ def poll_ports():
                 p["present"] = True
                 p["last_change"] = now
                 # a re-appearing port may be a DIFFERENT physical light on the
-                # same jack — the old verdict/identity must not carry over
+                # same jack — the old verdict/identity must not carry over, and
+                # neither may a queued-but-unfired ⚡ (or bridge override): the
+                # new occupant was never clicked (A2, 08-17 review — every jack
+                # saw 2–4 different fixtures on 08-16)
                 STATE["results"].pop(dev, None)
                 p.pop("usb", None)
+                p["flash_requested"] = False
+                p.pop("bridge_override", None)
                 if ambush:
                     # one ambush upload per port: a ROM-parked board re-presents
                     # endlessly and got 3 identical uploads before this guard
@@ -245,6 +351,9 @@ def poll_ports():
             if p["present"] and dev not in seen:
                 p["present"] = False
                 p["last_change"] = now
+                # unplugging withdraws any un-fired flash intent with the light
+                p["flash_requested"] = False
+                p.pop("bridge_override", None)
                 # History is the FLASH record, not a plug/unplug diary (Elliot,
                 # 08-16): an unflashed light that leaves the bench just vanishes.
                 if STATE["results"].get(dev) is not None:
@@ -516,7 +625,7 @@ def detect_flashing():
     except Exception:
         return
     lines = [l for l in out.splitlines()
-             if re.search(r"esptool|arduino-cli|fleet_usb_bringup", l)
+             if re.search(r"esptool|arduino-cli|fleet_usb_bringup|usb-bringup-mac", l)
              and "flash-station" not in l]
     with LOCK:
         for dev, p in STATE["ports"].items():
@@ -693,7 +802,7 @@ h2{font-size:.95rem;margin:26px 0 8px;color:var(--muted);font-weight:600}
 .empty{color:var(--muted);border:1px dashed var(--line);border-radius:12px;
 padding:26px;text-align:center}
 </style></head><body><div class="wrap">
-<p class="eyebrow">Resonance · USB rescue bench · fx-260816-prtrel1-b</p>
+<p class="eyebrow" id="eyebrow">Resonance · USB bench</p>
 <h1>Flash Station <span class="mono" style="color:var(--muted);font-weight:400" id="src"></span></h1>
 <div class="stats">
  <div class="stat"><b id="n-conn">0</b><span>plugged in now</span></div>
@@ -709,6 +818,9 @@ padding:26px;text-align:center}
   </div>
  </div>
 </div>
+<h2>Firmware — staged for ⚡, and what the fleet runs <button class="ex" id="fwtog" onclick="fwToggle()" aria-pressed="false">show all</button></h2>
+<div class="cards" id="fwpanel"></div>
+<p class="note" id="fwbridge"></p>
 <h2>Plugged in now</h2>
 <div class="cards" id="cards"></div>
 <div id="none" class="empty" style="display:none">Nothing on USB. Plug a light in — it appears here within a second.</div>
@@ -798,6 +910,27 @@ function liveCard(dev,p,r){
 }
 function tog(dev){ excluded[dev]=!excluded[dev]; tick(); }
 async function arm(mah){ await fetch("/arm",{method:"POST",body:String(mah)}); tick(); }
+let fwAll = false;
+function fwToggle(){ fwAll = !fwAll; const b=document.getElementById("fwtog");
+  b.setAttribute("aria-pressed", String(fwAll)); b.textContent = fwAll? "flashable only" : "show all"; tick(); }
+async function stage(slug){ await fetch("/artifact",{method:"POST",body:JSON.stringify({slug})}); tick(); }
+function fwPanel(s){
+  let html = "";
+  for(const [slug,a] of Object.entries(s.artifacts||{})){
+    if(!fwAll && !a.flashable) continue;   // reference rows behind "show all"
+    const staged = slug===s.artifact;
+    const chip = staged? `<span class="chip pass">STAGED FOR ⚡</span>`
+      : a.flashable? (a.available? `<button class="ex" onclick="stage('${slug}')">stage for ⚡</button>`
+                                 : `<span class="chip fail">binary missing on this Mac</span>`)
+      : `<span class="chip connected">RUNNING IN FLEET — no binary here</span>`;
+    let kv = `<div class="kv"><b>${a.label}</b></div>`;
+    if(a.sha256) kv += `<div class="kv mono">sha256 ${a.sha256.slice(0,16)}… · ${Math.round(a.bytes/1024)} KB</div>`;
+    if(a.warn) kv += `<div class="kv" style="color:var(--amber)">${a.warn}</div>`;
+    for(const b of a.behaviors||[]) kv += `<div class="kv">· ${b}</div>`;
+    html += `<div class="cardp ${staged? "pass" : a.flashable? "connected" : ""}"><h3 style="font-size:.8rem">${slug}</h3>${chip}${kv}</div>`;
+  }
+  return html;
+}
 async function rename(fid, cur){
   const name = prompt("Nickname for "+fid+":", cur||"");
   if(name===null) return;
@@ -809,6 +942,9 @@ async function tick(){
     if(s.server_boot && s.server_boot !== MY_BOOT && !reloading){ reloading = true; location.reload(); return; }
     document.getElementById("src").textContent = s.jsonl ? " · " + s.jsonl.split("/").pop() : "";
     document.getElementById("lbl-pass").textContent = "flashed ✓ / " + s.expect;
+    document.getElementById("eyebrow").textContent = "Resonance · USB bench · staged: " + (s.artifact||"none");
+    document.getElementById("fwpanel").innerHTML = fwPanel(s);
+    document.getElementById("fwbridge").textContent = s.bridge_note||"";
     let conn=0, html="";
     for(const [dev,p] of Object.entries(s.ports)){
       if(!p.present) continue;
@@ -978,6 +1114,11 @@ class Handler(BaseHTTPRequestHandler):
                     "server_boot": SERVER_BOOT,
                     "checkups": STATE.get("checkups", {}),
                     "bridges": sorted(KNOWN_BRIDGES),
+                    "artifact": AUTO.get("artifact"),
+                    "artifacts": {slug: {k: v for k, v in a.items()
+                                         if k != "abs_path"}
+                                  for slug, a in ARTIFACTS.items()},
+                    "bridge_note": BRIDGE_FW_NOTE,
                 }
             self._send(json.dumps(payload), "application/json")
         elif getattr(self.server, "fleet_only", False):
@@ -1008,6 +1149,22 @@ class Handler(BaseHTTPRequestHandler):
                                  f"flashed instantly. DO NOT plug the bridge."
                                  if mins > 0 else "ambush disarmed")
             self._send(json.dumps({"ambush_min": mins}), "application/json")
+        elif self.path.startswith("/artifact"):
+            try:
+                body = json.loads(self.rfile.read(
+                    int(self.headers.get("Content-Length", 0))).decode() or "{}")
+                slug = str(body.get("slug", ""))
+            except ValueError:
+                self._send('{"ok":false}', "application/json")
+                return
+            a = ARTIFACTS.get(slug)
+            if a and a.get("flashable") and a.get("available"):
+                AUTO["artifact"] = slug
+                AUTO["last_note"] = f"staged {slug} for ⚡"
+                self._send(json.dumps({"ok": True, "artifact": slug}), "application/json")
+            else:
+                self._send('{"ok":false,"err":"not a flashable artifact with a binary"}',
+                           "application/json")
         elif self.path.startswith("/confirm"):
             # Operator bookkeeping from the page — no agent needed.
             try:
@@ -1028,12 +1185,19 @@ class Handler(BaseHTTPRequestHandler):
                     e.pop("counted", None)
                     e["red_confirmed_at"] = now_s
                     # a witnessed red IS proof of a working flash — it overrides
-                    # any tool verdict that raced a parked board
-                    e["flashed"] = True
-                    e["last_verdict"] = "PASS"
-                    if not e.get("first_pass_at"):
-                        e["first_pass_at"] = now_s
-                    e["note"] = f"RED confirmed by operator at {now_s} (via dashboard)"
+                    # a tool verdict that RACED a parked board. But only when an
+                    # upload actually happened: without upload evidence a red
+                    # tap must not manufacture a PASS (A4, 08-17 review)
+                    if e.get("last_verdict") in ("UPLOADED", "PASS"):
+                        e["flashed"] = True
+                        e["last_verdict"] = "PASS"
+                        if not e.get("first_pass_at"):
+                            e["first_pass_at"] = now_s
+                        e["note"] = f"RED confirmed by operator at {now_s} (via dashboard)"
+                    else:
+                        e["note"] = (f"⚠ RED witnessed at {now_s} but no upload evidence "
+                                     f"(last verdict: {e.get('last_verdict') or 'none'}) — "
+                                     f"verdict left unchanged")
                 elif action == "aside":
                     e["counted"] = False
                     e["note"] = body.get("note") or f"set aside by operator at {now_s}"
@@ -1139,6 +1303,10 @@ def main():
                                      and args.jsonl) else None,
                shim=shim)
     load_roster()
+    init_artifacts()
+    sel = AUTO.get("artifact")
+    print(f"staged firmware: {sel or 'NONE — no flashable binary found'}"
+          + (f" (sha {ARTIFACTS[sel]['sha256'][:16]}…)" if sel else ""))
 
     threading.Thread(target=watcher, daemon=True).start()
     srv = ThreadingHTTPServer((args.bind, args.http_port), Handler)
