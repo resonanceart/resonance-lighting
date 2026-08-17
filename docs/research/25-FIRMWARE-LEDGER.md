@@ -57,7 +57,9 @@ during sleep — solar resumes at sunrise.
 
 **Deliberately-old fixtures (Ben's census, 74 of 86 seen on current image):**
 - Bench diagnosis owed: `9E5B44` (2× clean rollback at 20 s self-test), `F40424`
-- Never exposed maintenance endpoint: `9E5A84`, `9F26D8`, `F2BCF4`, `F3FD88`
+- Never exposed maintenance endpoint: `9E5A84`, `9F26D8`, `F2BCF4`, `F3FD88` — **F3FD88 SOLVED
+  08-18 (station mesh census): it runs LEGACY `fixture-2026-08-06.5`**, a pre-recipe image ~11
+  days old; its maintenance stack predates the current contract. Needs a USB bench visit.
 - **Refused for low power — this is our sun pile**: `F2BE08`, `F3FD28`, `F401DC`, `F40308`,
   `F40314`, `F4035C` → once charged they still run our USB image and **need Ben's explicit OTA
   batch** (`ops/bench/fleet_dashboard_ota.py`) to join the fleet standard

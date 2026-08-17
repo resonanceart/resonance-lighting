@@ -57,9 +57,15 @@ battery_v:float(V) · battery_ma:int(mA, signed: + charging / − discharging) �
 soc_pct:int · reset_reason:str · ca_state:int · peer_mode:int · dl_pdr:float(0–1) ·
 dl_rssi_dbm:int · uptime_ms:int · age_ms:int · ts_utc:str`.
 
-- **`age_ms`** — fixture-reported downlink age (ms since it last heard the bridge), NOT
-  bridge-side staleness. Peer-row freshness = `now − row.ts_utc` (row is replaced wholesale per
-  heartbeat). Any "60 s listen window" is a CLIENT rendering choice — label it as such.
+- **`age_ms`** — bridge-computed `millis() − lastHeardMs` for that peer, refreshed only while
+  serial flows. **THE FRESHNESS TRIPLE-RULE (load-bearing):** a peer is live iff
+  `age_ms < 5000` **AND** `now − row.ts_utc < ~3 s` **AND** `serial.connected == true`. Reason:
+  if the bridge serial drops while the HTTP server keeps serving, every last-fresh peer's
+  `age_ms` FREEZES below 5000 forever — the dashboard's own strike/sleep gates have exactly this
+  flaw (`net_bench_dashboard.py:1901-1905`). Never trust `age_ms` alone.
+- **`peers` = "ever seen since dashboard start", never "present":** there is NO eviction anywhere
+  (bridge 192-slot table never ages out and silently ignores fixture #193; the dashboard dict
+  has no pruning path). Filter freshness client-side; ghosts are normal.
 - **`soc_pct` = −1** → no gauge fitted/readable. On the ESP-NOW wire the sentinel is 255
   (`net_peer.cpp:81`), and the BRIDGE translates 255 → −1 when printing the serial line
   (`cores3_bridge.ino:969`) — so at THIS layer you see −1 (live-confirmed on 9E5B44 + F403F0);
