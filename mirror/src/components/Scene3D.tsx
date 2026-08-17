@@ -24,6 +24,8 @@ import type { Telemetry } from '../lib/types'
 
 const BLENDER_TO_THREE = ([x, y, z]: number[]): [number, number, number] => [x, z, -y]
 
+const fmtAge = (ms: number): string => (ms >= 60_000 ? `${Math.round(ms / 60_000)}m` : `${Math.round(ms / 1000)}s`)
+
 function TreeModel() {
   // worksite-tree.glb — Ed's model, source-fixed true metres (a6f5483).
   const { scene } = useGLTF('/worksite-tree.glb')
@@ -69,8 +71,20 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const [slotSel, setSlotSel] = useState<string | null>(null)
   const [seatPick, setSeatPick] = useState<string>('')
   const controls = useRef<OrbitControlsImpl>(null)
+  const pointerDownAt = useRef<{ x: number; y: number } | null>(null)
   const latest = useRef(telemetry)
   latest.current = telemetry
+
+  // The listen window the census cites (adapter.listenWindowS). The bench
+  // dashboard NEVER prunes peers (state.peers[pid] accumulates for the whole
+  // bench session), so the Mirror must enforce the window it claims — a light
+  // silent for an hour is not "heard".
+  const windowMs = telemetry.listenWindowS * 1000
+  const heard = useMemo(
+    () => telemetry.fixtures.filter((f) => f.lastHeardMs < windowMs),
+    [telemetry, windowMs],
+  )
+  const heardIds = useMemo(() => new Set(heard.map((f) => f.fixtureId)), [heard])
 
   // Assignable perimeter slots — worksite table, perimeter class only
   // (the rest of the table is LX-gated and not shipped).
@@ -102,7 +116,16 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
 
   useEffect(() => {
     const t = setInterval(() => {
-      setNodes(solveTick(latest.current, useMirror.getState().seats))
+      // Solve over the listen window only — a stale peer must not hold a
+      // phantom spring or a phantom dot.
+      const tel = latest.current
+      const win = tel.listenWindowS * 1000
+      setNodes(
+        solveTick(
+          { ...tel, fixtures: tel.fixtures.filter((f) => f.lastHeardMs < win) },
+          useMirror.getState().seats,
+        ),
+      )
     }, 250)
     return () => clearInterval(t)
   }, [])
@@ -114,14 +137,21 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
     return m
   }, [seats])
 
-  const seated = nodes.filter((n) => n.pinned)
+  // A seat is a fact about the WORLD (a human hung that light there); the
+  // radio going quiet does not un-hang it. Seated counts come from the seat
+  // map, and a silent seat renders muted — visible, never identical to live.
+  const seatedTotal = Object.keys(seats).length
+  const silentSeats = Object.entries(seats).filter(([id]) => !heardIds.has(id))
   const located = nodes.filter((n) => n.placed && !n.pinned)
-  const unlocated = telemetry.fixtures.length - nodes.length
+  const unlocated = Math.max(0, heard.length - nodes.length)
+  // Card lookup searches ALL fixtures (stale rows included) so a silent
+  // light's card can still cite "last heard Ns ago" from the dashboard row.
   const sel = selected ? telemetry.fixtures.find((f) => f.fixtureId === selected) : undefined
+  const selSeat = selected ? seats[selected] : undefined
   const selNode = selected ? nodes.find((n) => n.id === selected) : undefined
   const slot = slotSel ? plSlots.find((s) => s.id === slotSel) : undefined
   const slotMac = slot ? macBySlot.get(slot.id) : undefined
-  const unseatedHeard = telemetry.fixtures.filter((f) => !seats[f.fixtureId]).map((f) => f.fixtureId)
+  const unseatedHeard = heard.filter((f) => !seats[f.fixtureId]).map((f) => f.fixtureId)
 
   const seatIt = () => {
     if (!slot || !seatPick) return
@@ -133,11 +163,26 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   return (
     <div className="scene3d">
       <p className="stage-status mono small">
-        {telemetry.fixtures.length} heard · {unlocated} not yet located · {located.length} self-located ·{' '}
-        {seated.length} seated
+        {heard.length} heard · {unlocated} not yet located · {located.length} self-located ·{' '}
+        {seatedTotal} seated{silentSeats.length > 0 ? ` (${silentSeats.length} silent)` : ''}
       </p>
 
-      <Canvas camera={{ position: [40, 30, 60], fov: 45, near: 0.1, far: 5000 }}>
+      <Canvas
+        camera={{ position: [40, 30, 60], fov: 45, near: 0.1, far: 5000 }}
+        onPointerDown={(e) => {
+          pointerDownAt.current = { x: e.clientX, y: e.clientY }
+        }}
+        onPointerMissed={(e) => {
+          // Browser 'click' fires even after a long orbit drag; only a real
+          // tap on empty space dismisses the selection.
+          const d = pointerDownAt.current
+          const moved = d ? Math.hypot(e.clientX - d.x, e.clientY - d.y) : 0
+          if (moved < 8) {
+            setSelected(null)
+            setSlotSel(null)
+          }
+        }}
+      >
         <ambientLight intensity={0.55} />
         <directionalLight position={[30, 50, 20]} intensity={0.8} />
 
@@ -173,6 +218,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
               <mesh
                 onClick={(e) => {
                   e.stopPropagation()
+                  if (e.delta > 8) return // orbit drag, not a tap
                   setSelected(null)
                   setSlotSel(s.id === slotSel ? null : s.id)
                 }}
@@ -196,6 +242,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
               <mesh
                 onClick={(e) => {
                   e.stopPropagation()
+                  if (e.delta > 8) return // orbit drag, not a tap
                   setSlotSel(null)
                   setSelected(n.id === selected ? null : n.id)
                 }}
@@ -207,7 +254,43 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
           )
         })}
 
-        <OrbitControls ref={controls} makeDefault enableDamping />
+        {/* seated-but-silent lights — the seat is a fact (a human hung it
+            there); the quiet radio renders MUTED, never identical to live */}
+        {silentSeats.map(([id, seat]) => {
+          const h = seat.slot ? (zBySlot.get(seat.slot) ?? 0.6) : 0.6
+          return (
+            <group key={id} position={[seat.x, h, -seat.y]}>
+              <mesh>
+                <sphereGeometry args={[0.32, 14, 14]} />
+                <meshBasicMaterial
+                  color={selected === id ? '#5b8cff' : '#55617a'}
+                  transparent
+                  opacity={0.45}
+                />
+              </mesh>
+              <mesh
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (e.delta > 8) return // orbit drag, not a tap
+                  setSlotSel(null)
+                  setSelected(id === selected ? null : id)
+                }}
+              >
+                <sphereGeometry args={[0.8, 8, 8]} />
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+              </mesh>
+            </group>
+          )
+        })}
+
+        <OrbitControls
+          ref={controls}
+          makeDefault
+          enableDamping
+          minDistance={8}
+          maxDistance={160}
+          maxPolarAngle={Math.PI * 0.495}
+        />
       </Canvas>
 
       <div className="nav-cluster" role="group" aria-label="Navigator">
@@ -224,6 +307,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
             <>
               <p className="muted small">
                 Seated: <span className="mono">{slotMac}</span>
+                {!heardIds.has(slotMac) ? ' · silent' : ''}
               </p>
               <div className="row-gap">
                 <button className="btn-line danger-text" onClick={() => { unpinSeat(slotMac); setSlotSel(null) }}>
@@ -256,21 +340,29 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
         </div>
       )}
 
-      {sel && selNode && !slot && (
+      {selected && !slot && (sel || selSeat) && (
         <div className="light-card">
           <div className="light-card-head">
-            <span className="mono">{sel.fixtureId}</span>
+            <span className="mono">{selected}</span>
             <span className="muted small">
-              {seats[sel.fixtureId]?.slot ? `seated at ${seats[sel.fixtureId].slot}` : 'self-located'}
+              {selSeat?.slot ? `seated at ${selSeat.slot}` : selSeat ? 'seated' : 'self-located'}
+              {!heardIds.has(selected) ? ' · silent' : ''}
             </span>
           </div>
           <p className="muted small">
-            {sel.rssi !== 0 ? `${sel.rssi} dBm · ` : ''}
-            {sel.fwRev}
+            {sel && sel.rssi !== 0 ? `${sel.rssi} dBm · ` : ''}
+            {sel?.fwRev ?? '—'}
+            {sel && !heardIds.has(selected) ? ` · last heard ${fmtAge(sel.lastHeardMs)} ago` : ''}
           </p>
           <div className="row-gap">
-            {selNode.pinned && (
-              <button className="btn-line" onClick={() => unpinSeat(sel.fixtureId)}>
+            {(selSeat || selNode?.pinned) && (
+              <button
+                className="btn-line"
+                onClick={() => {
+                  unpinSeat(selected)
+                  setSelected(null) // the unseated light loses its position — nothing to point at
+                }}
+              >
                 Unseat
               </button>
             )}
