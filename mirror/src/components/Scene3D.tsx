@@ -63,6 +63,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const seats = useMirror((s) => s.seats)
   const pinSeat = useMirror((s) => s.pinSeat)
   const unpinSeat = useMirror((s) => s.unpinSeat)
+  const send = useMirror((s) => s.send)
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
   const [plSlots, setPlSlots] = useState<PlSlot[]>([])
@@ -151,7 +152,11 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const selNode = selected ? nodes.find((n) => n.id === selected) : undefined
   const slot = slotSel ? plSlots.find((s) => s.id === slotSel) : undefined
   const slotMac = slot ? macBySlot.get(slot.id) : undefined
-  const unseatedHeard = heard.filter((f) => !seats[f.fixtureId]).map((f) => f.fixtureId)
+  // Strongest RSSI first: the light in the installer's hand is usually the
+  // loudest one the bridge hears — it belongs at the top of the picker.
+  const unseatedHeard = heard
+    .filter((f) => !seats[f.fixtureId])
+    .sort((a, b) => (b.rssi || -999) - (a.rssi || -999))
 
   const seatIt = () => {
     if (!slot || !seatPick) return
@@ -310,6 +315,15 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                 {!heardIds.has(slotMac) ? ' · silent' : ''}
               </p>
               <div className="row-gap">
+                {heardIds.has(slotMac) && (
+                  <button
+                    className="btn-line"
+                    onClick={() => send({ verb: 'NB_IDENTIFY', target: slotMac })}
+                    title="Flash this light in the real world"
+                  >
+                    Blink
+                  </button>
+                )}
                 <button className="btn-line danger-text" onClick={() => { unpinSeat(slotMac); setSlotSel(null) }}>
                   Unseat
                 </button>
@@ -321,17 +335,26 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
               <div className="source-live">
                 <select value={seatPick} onChange={(e) => setSeatPick(e.target.value)} aria-label="Pick a heard light">
                   <option value="">Pick a heard light…</option>
-                  {unseatedHeard.map((id) => (
-                    <option key={id} value={id}>
-                      {id}
+                  {unseatedHeard.map((f) => (
+                    <option key={f.fixtureId} value={f.fixtureId}>
+                      {f.fixtureId}
+                      {f.rssi !== 0 ? ` · ${f.rssi} dBm` : ''}
                     </option>
                   ))}
                 </select>
+                <button
+                  className="btn-line"
+                  onClick={() => send({ verb: 'NB_IDENTIFY', target: seatPick })}
+                  disabled={!seatPick}
+                  title="Flash the picked light so you can confirm it is the one in your hand"
+                >
+                  Blink
+                </button>
                 <button className="btn-accent" onClick={seatIt} disabled={!seatPick}>
                   Seat
                 </button>
               </div>
-              <p className="muted small">{unseatedHeard.length} heard lights not yet seated.</p>
+              <p className="muted small">{unseatedHeard.length} heard lights not yet seated · strongest first.</p>
               <div className="row-gap">
                 <button className="btn-line" onClick={() => setSlotSel(null)}>Close</button>
               </div>
@@ -355,6 +378,15 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
             {sel && !heardIds.has(selected) ? ` · last heard ${fmtAge(sel.lastHeardMs)} ago` : ''}
           </p>
           <div className="row-gap">
+            {heardIds.has(selected) && (
+              <button
+                className="btn-line"
+                onClick={() => send({ verb: 'NB_IDENTIFY', target: selected })}
+                title="Flash this light in the real world"
+              >
+                Blink
+              </button>
+            )}
             {(selSeat || selNode?.pinned) && (
               <button
                 className="btn-line"

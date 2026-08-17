@@ -178,7 +178,7 @@ function mutPage(layout: LayoutDoc, pageId: string, fn: (p: PageDef) => PageDef)
   return next
 }
 
-export const useMirror = create<MirrorStore>((set) => ({
+export const useMirror = create<MirrorStore>((set, get) => ({
   layout: load(),
   activePageId: TREE_TAB,
   editMode: false,
@@ -308,5 +308,18 @@ export const useMirror = create<MirrorStore>((set) => ({
     }
     console.info('[mirror:fence] emit', cmd)
     set((s) => ({ commandLog: [{ at: Date.now(), cmd }, ...s.commandLog].slice(0, 50) }))
+    // v2 (2026-08-17, launch night): the fence now actually EMITS — through
+    // the bench dashboard's own vetted POST /api/cmd, in its serial syntax
+    // ('i<MAC6>' one peer, 'I' all), re-validated server-side by
+    // valid_command(). Fire-and-forget: the UI never blocks on the radio.
+    const wire = cmd.target === 'all' ? 'I' : `i${cmd.target.toUpperCase()}`
+    fetch(`${get().dataSource.url.replace(/\/+$/, '')}/api/cmd`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: wire, label: `NB_IDENTIFY ${cmd.target}` }),
+    })
+      .then((r) => r.json())
+      .then((j) => console.info('[mirror:fence] dashboard ack', j))
+      .catch((e) => console.warn('[mirror:fence] emit failed (feed down?)', e))
   },
 }))
