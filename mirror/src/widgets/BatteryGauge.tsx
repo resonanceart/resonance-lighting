@@ -1,8 +1,9 @@
 import type { WidgetDataProps } from '../lib/types'
 
-/** soc=255 means the gauge gave no reading: render '—', never 0. */
+/** soc=255 (view sentinel; wire is -1 at the /api/state layer, contract §2)
+ *  means the gauge gave no reading: render 'n/a', never -1% / 255% / 0. */
 function socText(soc: number): string {
-  return soc === 255 ? '—' : `${soc}%`
+  return soc === 255 ? 'n/a' : `${soc}%`
 }
 
 function socClass(soc: number): string {

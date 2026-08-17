@@ -225,6 +225,24 @@ table.data tbody tr:last-child td { border-bottom: none; }
 .tab-label { font-size: 0.62rem; letter-spacing: 0.02em; }
 .tab-edit { color: var(--warn); }
 .tab-edit.tab-active { color: var(--warn); border-top-color: var(--warn); }
+/* narrow phones: icons carry the bar (labels would clip the Edit button) */
+@media (max-width: 430px) {
+  .tabbar { overflow-x: auto; }
+  .tab-label { display: none; }
+}
+
+/* BETA-until-Elliot-confirms — the ✔ RED pattern (contract §0.3) */
+.beta-chip {
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: transparent;
+}
+.beta-chip.beta-arm { color: var(--paper, #07090c); background: var(--danger); }
 
 /* ── edit panel ────────────────────────────────────────── */
 .edit-panel {

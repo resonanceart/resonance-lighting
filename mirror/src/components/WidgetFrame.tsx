@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { WidgetInstance } from '../lib/types'
 import { getWidgetDef } from '../lib/registry'
@@ -18,6 +19,12 @@ export function WidgetFrame({
   const moveWidget = useMirror((s) => s.moveWidget)
   const updateWidget = useMirror((s) => s.updateWidget)
   const updateConfig = useMirror((s) => s.updateConfig)
+  // Elliot's protocol (contract §0.3): every widget ships BETA and stays BETA
+  // until Elliot confirms it working in the app itself — the ✔ RED pattern.
+  // Two taps (arm, then confirm) so a stray tap can't clear the flag; the
+  // confirmation persists into the layout doc via config._confirmed.
+  const confirmed = typeof widget.config._confirmed === 'string'
+  const [arming, setArming] = useState(false)
   const def = getWidgetDef(widget.type)
   if (!def) {
     return (
@@ -33,6 +40,22 @@ export function WidgetFrame({
         <h3>
           <span aria-hidden>{def.icon}</span> {widget.label ?? def.title}
           <span className={`tier tier-${def.tier.toLowerCase()}`}>{def.tier}</span>
+          {!confirmed &&
+            (arming ? (
+              <button
+                className="beta-chip beta-arm"
+                onClick={() => {
+                  updateConfig(pageId, widget.id, '_confirmed', new Date().toISOString())
+                  setArming(false)
+                }}
+              >
+                ✔ Elliot confirms
+              </button>
+            ) : (
+              <button className="beta-chip" title="BETA until Elliot confirms in-app" onClick={() => setArming(true)}>
+                BETA
+              </button>
+            ))}
         </h3>
         {editMode && (
           <div className="widget-tools">

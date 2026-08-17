@@ -23,21 +23,32 @@ function str(v: unknown): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined
 }
 
-function mapPeer(id: string, row: PeerRow): FixtureState {
+function mapPeer(id: string, row: PeerRow, now: number): FixtureState {
   const battV = num(row.battery_v)
   // dl_pdr arrives either as a 0..1 ratio or already per-mille depending on
   // firmware tail; normalize on the safe side of the ambiguity.
   const rawPdr = num(row.dl_pdr) ?? num(row.pdr)
   const pdrPermille = rawPdr === undefined ? 0 : rawPdr <= 1 ? Math.round(rawPdr * 1000) : Math.round(rawPdr)
+  // Contract §2 (26-MIRROR-STATE-CONTRACT @ 5bb0e30): at the /api/state layer
+  // the no-gauge sentinel is -1 (bridge translates wire-255 → -1,
+  // cores3_bridge.ino:969); a literal 255 here is an untranslated path and
+  // equally not a reading. View-model sentinel stays 255 → renders "n/a".
+  const rawSoc = num(row.soc_pct)
+  const rowTs = str(row.ts_utc)
   return {
     fixtureId: id.toUpperCase(),
     cls: 'unknown', // wire carries no class; the registry join adds it later
     battMv: battV !== undefined ? Math.round(battV * 1000) : 0,
     battMa: num(row.battery_ma) ?? 0,
-    soc: num(row.soc_pct) ?? 255,
+    soc: rawSoc === undefined || rawSoc < 0 || rawSoc === 255 ? 255 : rawSoc,
     rssi: num(row.rssi_dbm) ?? num(row.dl_rssi_dbm) ?? 0,
     pdrPermille,
     lastHeardMs: num(row.age_ms) ?? 0,
+    // Contract §2: age_ms is the FIXTURE-reported downlink age; bridge-side
+    // row freshness is now − row.ts_utc. Carried separately so widgets can
+    // cite the right staleness; rendering still keys on age_ms everywhere
+    // (one consistent window — divergent counts would be a lie of divergence).
+    rowAgeMs: rowTs ? Math.max(0, now - Date.parse(rowTs)) : undefined,
     fwRev: str(row.firmware_rev) ?? '—',
     activeProgram: str(row.active_program) ?? str(row.ca_state) ?? str(row.peer_mode) ?? '—',
     lifeState: str(row.field_phase) ?? null,
@@ -47,12 +58,14 @@ function mapPeer(id: string, row: PeerRow): FixtureState {
 export function mapState(json: unknown): Telemetry {
   const root = (json ?? {}) as Record<string, unknown>
   const peers = (root.peers ?? {}) as Record<string, PeerRow>
+  const now = Date.now()
   return {
-    now: Date.now(),
-    // Must match the widgets' alive filter (lastHeardMs < 60s) — the census
-    // line cites this number, and a mismatched citation is a small lie.
+    now,
+    // Client rendering choice, labeled as such in every widget that cites it
+    // (contract §2). Must match the widgets' alive filter — the census line
+    // cites this number, and a mismatched citation is a small lie.
     listenWindowS: 60,
-    fixtures: Object.entries(peers).map(([id, row]) => mapPeer(id, row)),
+    fixtures: Object.entries(peers).map(([id, row]) => mapPeer(id, row, now)),
   }
 }
 

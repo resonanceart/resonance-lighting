@@ -41,7 +41,7 @@ const HOLD_S = 90
 function chipClass(v: string): string {
   if (v === 'PASS') return 'ok-text'
   if (v === 'FAIL') return 'danger-text'
-  if (v === 'FLASHING' || v === 'UPLOADED') return 'warn-text'
+  if (v === 'FLASHING' || v === 'UPLOADED' || v === 'PARTIAL') return 'warn-text'
   return ''
 }
 
@@ -87,8 +87,11 @@ export function FlashStation(_props: WidgetDataProps) {
 
   return (
     <div>
+      {/* roster accumulates across batches; expect is per-batch — never
+          compose them into one "x of y" (27 of 12 was tonight's lesson) */}
       <p className="muted small census-line">
-        {flashed} of {st.expect} flashed · artifact <span className="mono">{st.artifact}</span>
+        {flashed} flashed all-time · current batch expects {st.expect} · artifact{' '}
+        <span className="mono">{st.artifact}</span>
         {st.artifacts?.[st.artifact]?.label ? ` (${st.artifacts[st.artifact].label})` : ''}
       </p>
 

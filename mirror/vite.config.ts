@@ -30,11 +30,14 @@ const bench = {
 }
 
 // /flash → lighting-architect's flash-station.py (watch-only commissioning
-// dashboard). Same same-origin story as /bench.
+// dashboard). Same same-origin story as /bench — but GET-only: the station's
+// POST surface is bench-local and unauthenticated (contract §5 / C3 finding),
+// so the Mirror must never be a path to it.
 const flash = {
   target: 'http://127.0.0.1:8940',
   changeOrigin: true,
   rewrite: (p: string) => p.replace(/^\/flash/, ''),
+  bypass: (req: { method?: string }) => (req.method !== 'GET' ? '/' : undefined),
 }
 
 export default defineConfig({

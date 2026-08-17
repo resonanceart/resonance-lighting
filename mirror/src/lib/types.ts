@@ -68,8 +68,12 @@ export interface FixtureState {
   soc: number
   rssi: number
   pdrPermille: number
-  /** ms since last heartbeat — census honesty window */
+  /** ms since last heartbeat — census honesty window.
+   *  Contract §2: this is age_ms = FIXTURE-reported downlink age. */
   lastHeardMs: number
+  /** Bridge-side row freshness (now − row.ts_utc) — the other staleness axis.
+   *  Undefined when the row carries no ts_utc. */
+  rowAgeMs?: number
   fwRev: string
   activeProgram: string
   /** null on a running fixture; real value only when dormant. null ≠ 0. */
