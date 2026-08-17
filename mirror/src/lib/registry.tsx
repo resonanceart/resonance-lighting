@@ -5,6 +5,7 @@ import { FleetCensus } from '../widgets/FleetCensus'
 import { RssiSignal } from '../widgets/RssiSignal'
 import { BatteryGauge } from '../widgets/BatteryGauge'
 import { ProgramTruth } from '../widgets/ProgramTruth'
+import { FlashStation } from '../widgets/FlashStation'
 
 /**
  * The widget registry — the Mirror's block registry.
@@ -93,6 +94,16 @@ const DEFS: WidgetDef[] = [
       },
     ],
     component: BatteryGauge,
+  },
+  {
+    type: 'flash-station',
+    title: 'Flash station',
+    icon: '⚡',
+    tier: 'READ',
+    description: 'Bench commissioning mirror — port cards, verdicts, post-PASS hold. Watch-only.',
+    defaults: { span: 2, config: {} },
+    configFields: [],
+    component: FlashStation,
   },
   {
     type: 'program-truth',

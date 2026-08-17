@@ -17,8 +17,16 @@ const bench = {
   rewrite: (p: string) => p.replace(/^\/bench/, ''),
 }
 
+// /flash → lighting-architect's flash-station.py (watch-only commissioning
+// dashboard). Same same-origin story as /bench.
+const flash = {
+  target: 'http://127.0.0.1:8940',
+  changeOrigin: true,
+  rewrite: (p: string) => p.replace(/^\/flash/, ''),
+}
+
 export default defineConfig({
   plugins: [react()],
-  server: { proxy: { '/bench': bench } },
-  preview: { proxy: { '/bench': bench } },
+  server: { proxy: { '/bench': bench, '/flash': flash } },
+  preview: { proxy: { '/bench': bench, '/flash': flash } },
 })

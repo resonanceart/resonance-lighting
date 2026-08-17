@@ -88,6 +88,16 @@ function fleetPage(): PageDef {
   }
 }
 
+/** Elliot-named adoption #2 (2026-08-17: "bring in the flash as well"). */
+function flashPage(): PageDef {
+  return {
+    id: 'flash',
+    label: 'Flash',
+    icon: '⚡',
+    widgets: [{ id: uid('w'), type: 'flash-station', span: 2, visible: true, config: {} }],
+  }
+}
+
 /** Starter layout: the Fleet screen (Elliot-named), then Elliot's tab set
  *  shipped EMPTY on purpose — every other dashboard is built by the operator
  *  from the widget palette in Edit mode. The library is the product; the
@@ -97,7 +107,14 @@ export function defaultLayout(): LayoutDoc {
   return {
     version: 1,
     name: 'Console',
-    pages: [fleetPage(), page('Locate', '🔎'), page('Command', '🎛'), page('Lightshow', '🎬'), page('Settings', '⚙️')],
+    pages: [
+      fleetPage(),
+      flashPage(),
+      page('Locate', '🔎'),
+      page('Command', '🎛'),
+      page('Lightshow', '🎬'),
+      page('Settings', '⚙️'),
+    ],
   }
 }
 
@@ -107,6 +124,7 @@ function load(): LayoutDoc {
     if (raw) {
       const doc = JSON.parse(raw) as LayoutDoc
       if (doc.version === 1 && Array.isArray(doc.pages)) {
+        if (!doc.pages.some((p) => p.id === 'flash')) doc.pages.unshift(flashPage())
         if (!doc.pages.some((p) => p.id === 'fleet')) doc.pages.unshift(fleetPage())
         return doc
       }
