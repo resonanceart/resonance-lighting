@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { solveTick, type SolvedNode } from '../lib/locate'
-import { useMirror } from '../lib/store'
+import { solveTick, STAGE_POST, STAGE_MAX_R_M, type SolvedNode } from '../lib/locate'
+import { useMirror, TREE_LIMIT_M } from '../lib/store'
 import type { Telemetry } from '../lib/types'
 
 /**
@@ -144,21 +144,27 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
       if (!drag.current.moved) {
         setSelected(drag.current.id === selected ? null : drag.current.id)
       } else {
-        // Release near a live designed slot → seat exactly there (MAC↔slot).
         const id = drag.current.id
         const seat = useMirror.getState().seats[id]
         if (seat) {
-          let best: Slot | null = null
-          let bestD = SNAP_M
-          for (const s of slots) {
-            if (s.stale) continue // never seat onto superseded geometry
-            const d = Math.hypot(s.x - seat.x, s.y - seat.y)
-            if (d < bestD) {
-              best = s
-              bestD = d
+          if (Math.hypot(seat.x, seat.y) > TREE_LIMIT_M) {
+            // Fix points only exist on the tree: released outside → no pin,
+            // the light returns to its self-located staging position.
+            unpinSeat(id)
+          } else {
+            // Release near a live designed slot → seat exactly there (MAC↔slot).
+            let best: Slot | null = null
+            let bestD = SNAP_M
+            for (const s of slots) {
+              if (s.stale) continue // never seat onto superseded geometry
+              const d = Math.hypot(s.x - seat.x, s.y - seat.y)
+              if (d < bestD) {
+                best = s
+                bestD = d
+              }
             }
+            if (best) pinSeat(id, best.x, best.y, best.id)
           }
-          if (best) pinSeat(id, best.x, best.y, best.id)
         }
       }
       drag.current = null
@@ -206,9 +212,17 @@ export function Constellation({ telemetry }: { telemetry: Telemetry }) {
         ))}
 
         {staging.length > 0 && (
-          <text x={0} y={17.2} className="halo-label" style={{ fontSize: u * 2.4 }}>
-            staging field
-          </text>
+          <g>
+            <text x={STAGE_POST.x} y={STAGE_POST.y - STAGE_MAX_R_M - 1.2} className="halo-label" style={{ fontSize: u * 2.4 }}>
+              staging · range from bridge
+            </text>
+            {/* the listening post + real range rings */}
+            <circle cx={STAGE_POST.x} cy={STAGE_POST.y} r={u * 1.4} className="post" />
+            {[2, 4].map((r) => (
+              <circle key={r} cx={STAGE_POST.x} cy={STAGE_POST.y} r={r} className="range-ring" />
+            ))}
+            <circle cx={STAGE_POST.x} cy={STAGE_POST.y} r={STAGE_MAX_R_M} className="range-ring outer" />
+          </g>
         )}
 
         {nodes.map((n) => (

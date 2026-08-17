@@ -166,27 +166,36 @@ export function solveTick(telemetry: Telemetry, seats: SeatMap): SolvedNode[] {
     }
   }
 
-  // Emit: placeable at solved positions; the rest in the staging FIELD —
-  // a real place in the world south of the perimeter, rows growing outward.
+  // Emit: placeable at solved positions; the rest in the staging FIELD,
+  // SELF-LOCATED by the lights with the signal that exists today: each
+  // staged light sits at its real RSSI-derived range from the listening
+  // post (the bridge). Radius = measured; bearing = stable-arbitrary (id
+  // hash) until cross-light data exists. When NB_NEIGHBOR_REPORT goes
+  // live, the full relative solve replaces this — data upgrade, no rework.
   const out: SolvedNode[] = []
-  let halo = 0
-  const PER_ROW = 12
-  const ROW_GAP = 1.8
-  const COL_GAP = 1.7
   for (const f of heard) {
     const id = f.fixtureId
     if (placeable.has(id)) {
       const p = pos.get(id)!
       out.push({ id, x: p.x, y: p.y, pinned: Boolean(seats[id]), placed: true })
     } else {
-      const col = halo % PER_ROW
-      const row = Math.floor(halo / PER_ROW)
-      out.push({ id, x: (col - (PER_ROW - 1) / 2) * COL_GAP, y: 18.5 + row * ROW_GAP, pinned: false, placed: false })
-      halo++
+      const rM = f.rssi !== 0 ? Math.min(STAGE_MAX_R_M, 0.35 * rssiToMeters(f.rssi)) : STAGE_MAX_R_M
+      const a = seeded(id, 3) * Math.PI * 2
+      out.push({
+        id,
+        x: STAGE_POST.x + rM * Math.cos(a),
+        y: STAGE_POST.y + rM * Math.sin(a),
+        pinned: false,
+        placed: false,
+      })
     }
   }
   return out
 }
+
+/** The staging field's listening post (the bridge), world metres. */
+export const STAGE_POST = { x: 0, y: 20.5 }
+export const STAGE_MAX_R_M = 5.5
 
 /** Drop all solver momentum (after layout import/reset). */
 export function resetSolver(): void {

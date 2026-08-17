@@ -17,12 +17,22 @@ const STORAGE_KEY = 'mirror-layout-v2'
 const SOURCE_KEY = 'mirror-datasource-v2'
 const SEATS_KEY = 'mirror-seats-v3'
 
+/** Fix points only make sense ON the tree — anything outside this radius
+ *  (e.g. accidental drags in the staging field) is not a seat. */
+export const TREE_LIMIT_M = 16.5
+
 function loadSeats(): SeatMap {
   try {
     const raw = localStorage.getItem(SEATS_KEY)
     if (raw) {
       const s = JSON.parse(raw) as SeatMap
-      if (s && typeof s === 'object') return s
+      if (s && typeof s === 'object') {
+        const clean: SeatMap = {}
+        for (const [id, seat] of Object.entries(s)) {
+          if (Math.hypot(seat.x, seat.y) <= TREE_LIMIT_M) clean[id] = seat
+        }
+        return clean
+      }
     }
   } catch {
     /* fall through */
