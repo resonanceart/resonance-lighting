@@ -23,12 +23,25 @@ import type { Telemetry } from '../lib/types'
 const BLENDER_TO_THREE = ([x, y, z]: number[]): [number, number, number] => [x, z, -y]
 
 function TreeModel() {
-  const { scene } = useGLTF('/tree-context.glb')
-  // The twin's staleUnitsScale guard: a stray pre-rescale 10x GLB gets
-  // scaled down instead of dwarfing the site.
+  // worksite-tree.glb = Ed's model + uplights + pole stations + rope stakes,
+  // true metres (blender lane 6a0216f) — same lineage as footprint + slots.
+  // Replaced the old treev4 tree-context.glb (junk roof/ref meshes).
+  const { scene } = useGLTF('/worksite-tree.glb')
+  // The twin's staleUnitsScale guard, retuned for the worksite model: its
+  // LEGITIMATE span is 40.18 m (rope ring ×2, verified by blender lane), so
+  // only a genuinely 10x-stale export (>90 m) triggers the rescue scale.
   const scale = useMemo(() => {
     const size = new Box3().setFromObject(scene).getSize(new Vector3())
-    return Math.max(size.x, size.y, size.z) > 30 ? 0.1 : 1
+    const maxDim = Math.max(size.x, size.y, size.z)
+    console.info('[mirror:glb] worksite-tree bbox', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2))
+    // Units guard, measured against the known 40.18 m worksite span:
+    //  >90 m  → 10x-stale export, rescue ×0.1
+    //  <5 m   → inch-wrapper double-applied (exporter already wrote metres,
+    //           then ×0.0254 again → arrives at 1/39.37) — undo it.
+    //           Flagged to blender-architect; shim until the asset is fixed.
+    if (maxDim > 90) return 0.1
+    if (maxDim < 5) return 39.37
+    return 1
   }, [scene])
   return <primitive object={scene} scale={scale} />
 }
@@ -218,4 +231,4 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   )
 }
 
-useGLTF.preload('/tree-context.glb')
+useGLTF.preload('/worksite-tree.glb')
