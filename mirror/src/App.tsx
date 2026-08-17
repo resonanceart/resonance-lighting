@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { TabBar } from './components/TabBar'
 import { WidgetFrame } from './components/WidgetFrame'
 import { EditPanel } from './components/EditPanel'
-import { Constellation } from './components/Constellation'
+import { Scene3D } from './components/Scene3D'
 import { getWidgetDef } from './lib/registry'
 import { useMirror, TREE_TAB } from './lib/store'
 import { connectDashboard, type FeedStatus } from './lib/adapter'
@@ -42,9 +42,10 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* The stage is ALWAYS mounted — TouchConsole's "tree above the controls". */}
+      {/* The stage is ALWAYS mounted — TouchConsole's "tree above the controls".
+          The 3-D orbit is the original controller's, adopted verbatim. */}
       <div className="stage">
-        <Constellation telemetry={telemetry} />
+        <Scene3D telemetry={telemetry} />
       </div>
 
       <header className="app-head">

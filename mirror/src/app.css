@@ -460,3 +460,7 @@ table.data tbody tr:last-child td { border-bottom: none; }
 .constellation .post { fill: var(--surface-2); stroke: var(--muted); stroke-width: 0.14; }
 .range-ring { fill: none; stroke: var(--line); stroke-width: 0.08; opacity: 0.6; }
 .range-ring.outer { stroke-dasharray: 0.4 0.6; }
+
+/* ── 3-D orbit stage ───────────────────────────────────── */
+.scene3d { position: absolute; inset: 0; }
+.scene3d canvas { touch-action: none; }
