@@ -393,7 +393,9 @@ def _cobs_decode(chunk):
 def _ingest_hb(fid, fw, batt_mv, soc, rssi):
     STATE["mesh"][fid] = {
         "heard_at": time.time(), "fw": fw or None,
-        "batt_mv": batt_mv, "soc": None if soc in (None, 255) else soc,
+        "batt_mv": batt_mv, "soc": None if soc in (None, 255, -1) else soc,
+        # -1: the bridge translates wire-255 (no gauge) to -1 on its serial/UDP
+        # lines (cores3_bridge.ino:969); 255 kept for any untranslated path
         "rssi": rssi,
     }
 
