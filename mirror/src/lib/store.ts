@@ -62,15 +62,42 @@ function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`
 }
 
-/** Starter layout: Elliot's tab set, shipped EMPTY on purpose — these are
- *  placeholders. Every dashboard is built by the operator from the widget
- *  palette in Edit mode. The library is the product; the pages are canvases. */
+/** The one exception to blank-canvas: Elliot-named adoptions ship pre-seeded
+ *  (2026-08-17: "bring Ben's dashboard into the Mirror as the fleet screen").
+ *  Stable id so load() can heal layouts saved before the page existed. */
+function fleetPage(): PageDef {
+  const w = (type: string, span: 1 | 2, config: Record<string, unknown> = {}): WidgetInstance => ({
+    id: uid('w'),
+    type,
+    span,
+    visible: true,
+    config,
+  })
+  return {
+    id: 'fleet',
+    label: 'Fleet',
+    icon: '💡',
+    widgets: [
+      w('stat-tile', 1, { metric: 'alive' }),
+      w('stat-tile', 1, { metric: 'stale' }),
+      w('fleet-census', 2, { cls: 'all' }),
+      w('rssi-signal', 2, { worstFirst: true }),
+      w('battery-gauge', 2, { sort: 'soc' }),
+      w('program-truth', 2),
+    ],
+  }
+}
+
+/** Starter layout: the Fleet screen (Elliot-named), then Elliot's tab set
+ *  shipped EMPTY on purpose — every other dashboard is built by the operator
+ *  from the widget palette in Edit mode. The library is the product; the
+ *  pages are canvases. */
 export function defaultLayout(): LayoutDoc {
   const page = (label: string, icon: string): PageDef => ({ id: uid('p'), label, icon, widgets: [] })
   return {
     version: 1,
     name: 'Console',
-    pages: [page('Locate', '🔎'), page('Command', '🎛'), page('Lightshow', '🎬'), page('Settings', '⚙️')],
+    pages: [fleetPage(), page('Locate', '🔎'), page('Command', '🎛'), page('Lightshow', '🎬'), page('Settings', '⚙️')],
   }
 }
 
@@ -79,7 +106,10 @@ function load(): LayoutDoc {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const doc = JSON.parse(raw) as LayoutDoc
-      if (doc.version === 1 && Array.isArray(doc.pages)) return doc
+      if (doc.version === 1 && Array.isArray(doc.pages)) {
+        if (!doc.pages.some((p) => p.id === 'fleet')) doc.pages.unshift(fleetPage())
+        return doc
+      }
     }
   } catch {
     /* corrupted doc falls through to default */
