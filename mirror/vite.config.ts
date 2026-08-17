@@ -1,5 +1,17 @@
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+// Stamped once when the dev server / build starts — the UpdateChip compares
+// this against the branch head on GitHub so the app always SHOWS whether it
+// is running the most recent code (Elliot 08-17). No background processes:
+// the check lives in the browser while the app is open.
+let commit = 'unknown'
+try {
+  commit = execSync('git rev-parse --short=8 HEAD', { encoding: 'utf-8' }).trim()
+} catch {
+  /* no git (e.g. bare deploy) — the chip renders 'unknown' honestly */
+}
 
 // Port 4180 — network-tester's mirror lane. 5173 belongs to the live twin,
 // 4173 to the QA preview; never collide with either.
@@ -26,6 +38,7 @@ const flash = {
 }
 
 export default defineConfig({
+  define: { __MIRROR_COMMIT__: JSON.stringify(commit) },
   plugins: [react()],
   server: { proxy: { '/bench': bench, '/flash': flash } },
   preview: { proxy: { '/bench': bench, '/flash': flash } },

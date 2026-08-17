@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { TabBar } from './components/TabBar'
+import { UpdateChip } from './components/UpdateChip'
 import { WidgetFrame } from './components/WidgetFrame'
 import { EditPanel } from './components/EditPanel'
 import { Scene3D } from './components/Scene3D'
@@ -54,6 +55,7 @@ export default function App() {
           <i className="dot" style={{ background: STATUS_DOT[status] }} />
           {status === 'live' ? 'listening' : status}
         </span>
+        <UpdateChip />
       </header>
 
       {page && (
