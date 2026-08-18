@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import type { LayoutDoc, MirrorCommand, PageDef, WidgetInstance } from './types'
 import { getWidgetDef } from './registry'
-import { tagCapable } from './adapter'
 import type { SeatMap } from './locate'
 
 /** Sentinel tab id: the always-on constellation stage (no sheet open). */
@@ -155,6 +154,10 @@ interface MirrorStore {
   commandLog: { at: number; cmd: MirrorCommand; refused?: boolean }[]
   /** master.firmware_rev, synced from telemetry by App — verb capability gate. */
   bridgeFw: string | null
+  /** Human-facing capability truth, derived alongside bridgeFw: UI disables
+   *  Tag controls from these instead of letting a click hit the refusal. */
+  tagCapable: boolean
+  tagRefusalReason: string | null
   /** Tags this tab currently holds (id → lease-expiry ms). Renewal rides
    *  ensureTagRenewer; the WORLD's tag truth is the fixture's own led_g. */
   activeTags: Record<string, number>
@@ -203,6 +206,8 @@ export const useMirror = create<MirrorStore>((set, get) => ({
   commandLog: [],
   activeTags: {},
   bridgeFw: null,
+  tagCapable: false,
+  tagRefusalReason: 'bridge fw unknown — waiting for the feed',
 
   pinSeat: (id, x, y, slot) =>
     set((s) => {
@@ -332,11 +337,8 @@ export const useMirror = create<MirrorStore>((set, get) => ({
     // Verb capability gate: an 08-15.1 bridge swallows T char-by-char while
     // the dashboard prints Sent — emitting through it would reproduce that
     // lie inside the Mirror. Refuse loudly, audit the refusal, send nothing.
-    if (cmd.verb === 'TAG' && !tagCapable(get().bridgeFw)) {
-      console.warn(
-        `[mirror:fence] TAG refused — bridge fw '${get().bridgeFw ?? 'unknown'}' has no case 'T' ` +
-          `(needs >= cores3-bridge-2026-08-16.1; reflash E39A34 pending Elliot's go)`,
-      )
+    if (cmd.verb === 'TAG' && !get().tagCapable) {
+      console.warn(`[mirror:fence] TAG refused — ${get().tagRefusalReason ?? 'bridge incapable'}`)
       set((s) => ({ commandLog: [{ at: Date.now(), cmd, refused: true }, ...s.commandLog].slice(0, 50) }))
       return
     }

@@ -104,16 +104,27 @@ export function isHeard(t: Telemetry, f: FixtureState): boolean {
   return f.lastHeardMs < win && (f.rowAgeMs === undefined || f.rowAgeMs < win)
 }
 
-/** Can this bridge forward T tags? case 'T' first shipped in
- *  cores3-bridge-2026-08-16.1 (LX source check: 15a318c/d4b1405 = 08-15.1
- *  → zero hits; 35d1a1e = 08-16.1 → present). Older bridges swallow the
- *  verb char-by-char while the dashboard still prints Sent — emitting
- *  through one would reproduce that lie inside the Mirror. Unknown fw
- *  (null) counts as incapable: refuse until the bridge introduces itself. */
-export function tagCapable(fw: string | null): boolean {
+/** Verb capability gates (design 28 rule 5 + the 08-15.1 no-`case 'T'`
+ *  incident). A bridge only gets a verb its firmware is KNOWN to forward —
+ *  older bridges swallow unknown opcodes char-by-char while the dashboard
+ *  still prints Sent. FAIL CLOSED: null/unparseable fw (the reconnect
+ *  boot-banner window) counts as incapable until the bridge introduces
+ *  itself. Two capabilities, two thresholds (LX): T tags land in 08-16.1;
+ *  B dark-lease lands one version later in 08-17.1. Date compares are safe
+ *  lexicographically (ISO); the trailing .N is parsed numerically — '.10'
+ *  must not sort before '.2'. */
+function fwAtLeast(fw: string | null, date: string, minor: number): boolean {
   const m = fw?.match(/(\d{4}-\d{2}-\d{2})\.(\d+)$/)
   if (!m) return false
-  return m[1] > '2026-08-16' || (m[1] === '2026-08-16' && Number(m[2]) >= 1)
+  return m[1] > date || (m[1] === date && Number(m[2]) >= minor)
+}
+
+export function tagCapable(fw: string | null): boolean {
+  return fwAtLeast(fw, '2026-08-16', 1)
+}
+
+export function darkCapable(fw: string | null): boolean {
+  return fwAtLeast(fw, '2026-08-17', 1)
 }
 
 export type FeedStatus = 'connecting' | 'live' | 'error'
