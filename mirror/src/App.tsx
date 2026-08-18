@@ -80,7 +80,12 @@ export default function App() {
                 const def = getWidgetDef(w.type)
                 const Body = def?.component
                 return (
-                  <WidgetFrame key={w.id} pageId={page.id} widget={w}>
+                  <WidgetFrame
+                    key={w.id}
+                    pageId={page.id}
+                    widget={w}
+                    live={status === 'live' && telemetry.serialConnected}
+                  >
                     {Body ? <Body config={w.config} telemetry={telemetry} send={send} /> : null}
                   </WidgetFrame>
                 )

@@ -8,10 +8,13 @@ import { useMirror } from '../lib/store'
 export function WidgetFrame({
   pageId,
   widget,
+  live,
   children,
 }: {
   pageId: string
   widget: WidgetInstance
+  /** Feed is live AND the serial ear is up — drives the LIVE/STALE badge. */
+  live: boolean
   children: ReactNode
 }) {
   const editMode = useMirror((s) => s.editMode)
@@ -40,6 +43,8 @@ export function WidgetFrame({
         <h3>
           <span aria-hidden>{def.icon}</span> {widget.label ?? def.title}
           <span className={`tier tier-${def.tier.toLowerCase()}`}>{def.tier}</span>
+          {/* "BETA" read as "mock" to Elliot (2026-08-18) — the data is LIVE;
+              only CONFIRMATION is pending. The badge says exactly that. */}
           {!confirmed &&
             (arming ? (
               <button
@@ -52,10 +57,15 @@ export function WidgetFrame({
                 ✔ Elliot confirms
               </button>
             ) : (
-              <button className="beta-chip" title="BETA until Elliot confirms in-app" onClick={() => setArming(true)}>
-                BETA
+              <button
+                className="beta-chip"
+                title="Real data from the live feed — the widget just awaits Elliot's in-app confirmation"
+                onClick={() => setArming(true)}
+              >
+                {live ? 'LIVE' : 'STALE'} · unconfirmed
               </button>
             ))}
+          {confirmed && live && <span className="live-chip">LIVE</span>}
         </h3>
         {editMode && (
           <div className="widget-tools">

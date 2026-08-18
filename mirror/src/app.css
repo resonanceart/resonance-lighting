@@ -243,6 +243,15 @@ table.data tbody tr:last-child td { border-bottom: none; }
   background: transparent;
 }
 .beta-chip.beta-arm { color: var(--paper, #07090c); background: var(--danger); }
+.live-chip {
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: var(--ok);
+  border: 1px solid var(--ok);
+  border-radius: 999px;
+}
 
 /* ── edit panel ────────────────────────────────────────── */
 .edit-panel {

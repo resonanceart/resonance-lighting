@@ -59,9 +59,10 @@ export type ConfigField =
  *  and no last_seen: recency is age_ms + the envelope ts_utc. */
 export interface FixtureState {
   fixtureId: string // last 6 hex of MAC
-  /** 'unknown' when the source is the live wire — class comes from the
-   *  registry join, not the heartbeat. */
-  cls: 'downlight' | 'perimeter' | 'chandelier' | 'trunk' | 'unknown'
+  /** From the wire's fixture_class byte (fixture_context.h enum, wire-stable:
+   *  0 unknown/auto · 1 downlight · 2 perimeter · 3 uplight · 4 chandelier).
+   *  Carry-forward tail field — "last known". */
+  cls: 'downlight' | 'perimeter' | 'uplight' | 'chandelier' | 'unknown'
   battMv: number
   battMa: number
   /** 255 = no gauge reading. Render '—', never 0. */

@@ -15,6 +15,15 @@ import type { FixtureState, Telemetry } from './types'
 
 type PeerRow = Record<string, unknown>
 
+/** fixture_context.h FixtureClass — wire/NVS-stable byte values. */
+const CLASS_BY_WIRE: Record<number, FixtureState['cls']> = {
+  0: 'unknown',
+  1: 'downlight',
+  2: 'perimeter',
+  3: 'uplight',
+  4: 'chandelier',
+}
+
 function num(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined
 }
@@ -37,7 +46,7 @@ function mapPeer(id: string, row: PeerRow, now: number): FixtureState {
   const rowTs = str(row.ts_utc)
   return {
     fixtureId: id.toUpperCase(),
-    cls: 'unknown', // wire carries no class; the registry join adds it later
+    cls: CLASS_BY_WIRE[num(row.fixture_class) ?? 0] ?? 'unknown',
     battMv: battV !== undefined ? Math.round(battV * 1000) : 0,
     battMa: num(row.battery_ma) ?? 0,
     soc: rawSoc === undefined || rawSoc < 0 || rawSoc === 255 ? 255 : rawSoc,
