@@ -7,7 +7,7 @@
 // exercises the touch/seat/select surface against the dev server, and returns
 // a {pass, results[]} table. Blink emission is INTERCEPTED (page.route) so the
 // regression never fires a real radio command — the wire shape is still
-// asserted. Real-blink confirmation is a deliberate manual step (TESTING.md).
+// asserted. Real-tag confirmation is a deliberate manual step (TESTING.md).
 //
 // Assumes: dev server on :4180, live or stub feed connected, slot PL-11-B
 // visible at the default camera (it is, at 390x844).
@@ -72,11 +72,11 @@ async (page) => {
       seatedMac = await p.evaluate(() => document.querySelector('.light-card select option:nth-child(2)')?.value ?? null);
       if (seatedMac) {
         await p.selectOption('.light-card select', seatedMac);
-        // 4a · Blink is intercepted, wire shape asserted
+        // 4a · Tag is intercepted, wire shape asserted (T<MAC>:1, design 28 C0)
         const blinkBtns = await p.$$('.light-card button');
-        for (const b of blinkBtns) if ((await b.innerText()) === 'Blink') { await b.click(); break; }
+        for (const b of blinkBtns) if ((await b.innerText()) === 'Tag') { await b.click(); break; }
         await p.waitForTimeout(400);
-        check('blink emits i<MAC>', cmdPosts.some((c) => c.cmd === 'i' + seatedMac.toUpperCase()), JSON.stringify(cmdPosts));
+        check('tag emits T<MAC>:1', cmdPosts.some((c) => c.cmd === 'T' + seatedMac.toUpperCase() + ':1'), JSON.stringify(cmdPosts));
         await p.click('.light-card .btn-accent');
         await p.waitForTimeout(600);
         const c1 = await census();

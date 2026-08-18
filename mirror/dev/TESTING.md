@@ -9,7 +9,7 @@ when touching dropout/silent-seat logic; lane 3 once per install session.
 `browser_run_code_unsafe({ filename: '<abs path>/stage_test.playwright.js' })`
 
 Covers: feed chip · census shape · tap-slot select · orbit-preserves-card ·
-empty-tap dismiss · camera reset · blink wire shape (`i<MAC6>` — INTERCEPTED,
+empty-tap dismiss · camera reset · tag wire shape (`T<MAC6>:1` — INTERCEPTED,
 never reaches the radio) · seat → census+1 → localStorage persist → unseat.
 Runs in an isolated browser context: it can never touch an installer's seat map.
 9 checks, all must pass. It requires the dev server on :4180 with SOME feed
@@ -35,9 +35,11 @@ silent — crosses the 60 s listen window) and GHOST (1 h stale).
   -- --host`). Feed chip green.
 - One-finger orbit, pinch zoom (camera must never go under the ground or lose
   the tree), ⌂ reset.
-- Tap a slot → picker lists strongest-RSSI first → **Blink** → CONFIRM THE
-  PHYSICAL LIGHT FLASHES (this is the one deliberate real-radio step; the
-  automated lane never fires it) → Seat → dot appears at the slot.
+- Tap a slot → picker lists strongest-RSSI first → **Tag** → CONFIRM THE
+  PHYSICAL LIGHT GOES STEADY GREEN (this is the one deliberate real-radio
+  step; the automated lane never fires it — and it doubles as the C0
+  closed-loop confirmation MIRROR's telemetry test could not settle) →
+  Seat → dot appears at the slot → Untag.
 - Kill the light's power (or walk it out of range): within 60 s the census
   shows `(1 silent)` and the dot goes muted. Restore: it recovers.
 - Two phones? Remember seats are PER DEVICE until the shared seat layer ships

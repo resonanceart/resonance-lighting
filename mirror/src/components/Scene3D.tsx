@@ -116,7 +116,8 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const seats = useMirror((s) => s.seats)
   const pinSeat = useMirror((s) => s.pinSeat)
   const unpinSeat = useMirror((s) => s.unpinSeat)
-  const send = useMirror((s) => s.send)
+  const toggleTag = useMirror((s) => s.toggleTag)
+  const activeTags = useMirror((s) => s.activeTags)
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
   const [plSlots, setPlSlots] = useState<PlSlot[]>([])
@@ -139,6 +140,12 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
     [telemetry, windowMs],
   )
   const heardIds = useMemo(() => new Set(heard.map((f) => f.fixtureId)), [heard])
+  // TAG TRUTH: a light renders green from its OWN telemetry (ledG), never
+  // from our send intent — the tab's activeTags only labels buttons.
+  const greenIds = useMemo(
+    () => new Set(heard.filter((f) => (f.ledG ?? 0) > 0).map((f) => f.fixtureId)),
+    [heard],
+  )
 
   // Assignable perimeter slots — worksite table, perimeter class only
   // (the rest of the table is LX-gated and not shipped).
@@ -297,7 +304,9 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
             <group key={n.id} position={[n.x, h, -n.y]}>
               <mesh>
                 <sphereGeometry args={[0.32, 14, 14]} />
-                <meshBasicMaterial color={selected === n.id ? '#5b8cff' : '#dbe4f0'} />
+                <meshBasicMaterial
+                  color={greenIds.has(n.id) ? '#38d97a' : selected === n.id ? '#5b8cff' : '#dbe4f0'}
+                />
               </mesh>
               <mesh
                 onClick={(e) => {
@@ -373,10 +382,10 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                 {heardIds.has(slotMac) && (
                   <button
                     className="btn-line"
-                    onClick={() => send({ verb: 'NB_IDENTIFY', target: slotMac })}
-                    title="Flash this light in the real world"
+                    onClick={() => toggleTag(slotMac)}
+                    title="Steady-green tag this light in the real world"
                   >
-                    Blink
+                    {activeTags[slotMac] ? 'Untag' : 'Tag'}
                   </button>
                 )}
                 <button className="btn-line danger-text" onClick={() => { unpinSeat(slotMac); setSlotSel(null) }}>
@@ -399,11 +408,11 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                 </select>
                 <button
                   className="btn-line"
-                  onClick={() => send({ verb: 'NB_IDENTIFY', target: seatPick })}
+                  onClick={() => toggleTag(seatPick)}
                   disabled={!seatPick}
-                  title="Flash the picked light so you can confirm it is the one in your hand"
+                  title="Steady-green tag the picked light so you can confirm it is the one in your hand"
                 >
-                  Blink
+                  {seatPick && activeTags[seatPick] ? 'Untag' : 'Tag'}
                 </button>
                 <button className="btn-accent" onClick={seatIt} disabled={!seatPick}>
                   Seat
@@ -436,10 +445,10 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
             {heardIds.has(selected) && (
               <button
                 className="btn-line"
-                onClick={() => send({ verb: 'NB_IDENTIFY', target: selected })}
-                title="Flash this light in the real world"
+                onClick={() => toggleTag(selected)}
+                title="Steady-green tag this light in the real world"
               >
-                Blink
+                {activeTags[selected] ? 'Untag' : 'Tag'}
               </button>
             )}
             {(selSeat || selNode?.pinned) && (
