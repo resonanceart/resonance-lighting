@@ -78,6 +78,8 @@ function fleetPage(): PageDef {
     label: 'Fleet',
     icon: '💡',
     widgets: [
+      // Elliot (2026-08-18, twice): Ben's dashboard IS the fleet tab's face.
+      w('ben-dashboard', 2),
       w('stat-tile', 1, { metric: 'alive' }),
       w('stat-tile', 1, { metric: 'stale' }),
       w('fleet-census', 2, { cls: 'all' }),
@@ -126,6 +128,11 @@ function load(): LayoutDoc {
       if (doc.version === 1 && Array.isArray(doc.pages)) {
         if (!doc.pages.some((p) => p.id === 'flash')) doc.pages.unshift(flashPage())
         if (!doc.pages.some((p) => p.id === 'fleet')) doc.pages.unshift(fleetPage())
+        // Heal pre-embed fleet layouts: Ben's dashboard leads the tab (Elliot).
+        const fleet = doc.pages.find((p) => p.id === 'fleet')
+        if (fleet && !fleet.widgets.some((w) => w.type === 'ben-dashboard')) {
+          fleet.widgets.unshift({ id: uid('w'), type: 'ben-dashboard', span: 2, visible: true, config: {} })
+        }
         return doc
       }
     }

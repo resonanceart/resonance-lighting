@@ -243,6 +243,16 @@ table.data tbody tr:last-child td { border-bottom: none; }
   background: transparent;
 }
 .beta-chip.beta-arm { color: var(--paper, #07090c); background: var(--danger); }
+/* Ben's dashboard, framed full-bleed inside the sheet */
+.ben-embed iframe {
+  width: 100%;
+  height: min(62vh, 560px);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: #07090c;
+}
+.ben-embed-caption { margin: 6px 0 0; }
+
 .live-chip {
   margin-left: 6px;
   padding: 1px 7px;

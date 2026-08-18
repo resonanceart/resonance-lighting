@@ -6,6 +6,7 @@ import { RssiSignal } from '../widgets/RssiSignal'
 import { BatteryGauge } from '../widgets/BatteryGauge'
 import { ProgramTruth } from '../widgets/ProgramTruth'
 import { FlashStation } from '../widgets/FlashStation'
+import { BenDashboard } from '../widgets/BenDashboard'
 
 /**
  * The widget registry — the Mirror's block registry.
@@ -94,6 +95,17 @@ const DEFS: WidgetDef[] = [
       },
     ],
     component: BatteryGauge,
+  },
+  {
+    type: 'ben-dashboard',
+    title: "Ben's bench (embedded)",
+    icon: '🖥',
+    tier: 'READ',
+    description:
+      "Ben's dashboard page itself, framed live — a window onto his UI, not a Mirror send surface. His command buttons are REAL; the caption says so.",
+    defaults: { span: 2, config: {} },
+    configFields: [],
+    component: BenDashboard,
   },
   {
     type: 'flash-station',

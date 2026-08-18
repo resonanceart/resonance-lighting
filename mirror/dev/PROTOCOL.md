@@ -1,10 +1,14 @@
 # Mirror code-update protocol · v1
 
 Three agents commit to this app simultaneously (Elliot, 2026-08-18: "make sure
-we have a protocol for updating the app code"). This page codifies the pattern
-that carried launch night — every rule below earned its place by a real
-incident or a real save. Keep it one page; simplicity is an acceptance
-criterion.
+we have a protocol for updating the app code" · "a seamless multi agent app
+build with lighting comms, digital environment and Git and code management
+from network tester"). Roles: **lighting-architect** = lighting comms ·
+**blender-architect** = digital environment · **network-tester (MIRROR)** =
+the app + Git and code management (branch hygiene, gates, integration,
+landing). This page codifies the pattern that carried launch night — every
+rule below earned its place by a real incident or a real save. Keep it one
+page; simplicity is an acceptance criterion.
 
 ## 1 · One branch, one truth
 `qa/mirror-ui-lib` on `gh-fork` (github.com/resonanceart/resonance-lighting).
