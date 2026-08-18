@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, useGLTF } from '@react-three/drei'
-import { Box3, Vector3 } from 'three'
+import { Box3, Mesh, MeshStandardMaterial, Vector3 } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { solveTick, type SolvedNode } from '../lib/locate'
 import { useMirror } from '../lib/store'
@@ -40,6 +40,59 @@ function TreeModel() {
     return 1
   }, [scene])
   return <primitive object={scene} scale={scale} />
+}
+
+function ChandelierModel() {
+  // chandelier.glb — true-metre cut (1.50 m span, re-verified at copy time).
+  // Ed's worksite export does not carry the chandelier; it is its own asset,
+  // anchored on the chandelier fixtures' centroid from fixtures.json — the
+  // same convention as the twin app, so both worlds hang it in one place.
+  const { scene } = useGLTF('/chandelier.glb')
+  const [at, setAt] = useState<[number, number, number] | null>(null)
+  useEffect(() => {
+    fetch('/fixtures.json')
+      .then((r) => r.json())
+      .then((j: { fixtures?: { role?: string; position: number[] }[] }) => {
+        const ch = (j.fixtures ?? []).filter((f) => f.role === 'chandelier')
+        if (ch.length === 0) return
+        const s = ch.reduce((a, f) => [a[0] + f.position[0], a[1] + f.position[1], a[2] + f.position[2]], [0, 0, 0])
+        setAt(BLENDER_TO_THREE([s[0] / ch.length, s[1] / ch.length, s[2] / ch.length]))
+      })
+      .catch(() => setAt(null))
+  }, [])
+  // 10x-stale-units guard, same spirit as TreeModel's: the chandelier is a
+  // ~1.5 m object; >5 m means an old 10x export slipped back in.
+  const scale = useMemo(() => {
+    const size = new Box3().setFromObject(scene).getSize(new Vector3())
+    return Math.max(size.x, size.y, size.z) > 5 ? 0.1 : 1
+  }, [scene])
+  // Amber, the twin's chandelier convention — inside the gray trunk lattice
+  // an unstyled gray mesh reads as more structure and disappears.
+  const styled = useMemo(() => {
+    const s = scene.clone(true)
+    const mat = new MeshStandardMaterial({ color: '#c08a3e', roughness: 0.65, metalness: 0.35 })
+    s.traverse((o) => {
+      if ((o as Mesh).isMesh) (o as Mesh).material = mat
+    })
+    return s
+  }, [scene])
+  if (!at) return null
+  return <primitive object={styled} position={at} scale={scale} />
+}
+
+/** Exposes the three scene on window for the stage regression's scene-graph
+ *  assertions (position/scale checks that pixel screenshots can't make). */
+function DebugSceneHandle() {
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
+  const controls = useThree((s) => s.controls)
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>
+    w.__mirrorScene = scene
+    w.__mirrorCamera = camera
+    w.__mirrorControls = controls
+  }, [scene, camera, controls])
+  return null
 }
 
 function GroundRing({ r, opacity }: { r: number; opacity: number }) {
@@ -191,8 +244,10 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
         <ambientLight intensity={0.55} />
         <directionalLight position={[30, 50, 20]} intensity={0.8} />
 
+        <DebugSceneHandle />
         <Suspense fallback={null}>
           <TreeModel />
+          <ChandelierModel />
         </Suspense>
 
         {/* Rings only — no station markers: the pole structures are in the
@@ -292,7 +347,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
           ref={controls}
           makeDefault
           enableDamping
-          minDistance={8}
+          minDistance={2}
           maxDistance={160}
           maxPolarAngle={Math.PI * 0.495}
         />
@@ -409,3 +464,4 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
 }
 
 useGLTF.preload('/worksite-tree.glb')
+useGLTF.preload('/chandelier.glb')
