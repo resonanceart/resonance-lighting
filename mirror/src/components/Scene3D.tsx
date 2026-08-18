@@ -42,11 +42,19 @@ function TreeModel() {
   return <primitive object={scene} scale={scale} />
 }
 
+/** The crown "roof circle" — the r≈0.9 m ring the canopy arcs converge on.
+ *  Underside plane measured by upward ray-scan of the worksite model
+ *  (2026-08-17, symmetric hits at 4 azimuths). Elliot: the chandelier hangs
+ *  flush with this circle. */
+const ROOF_CIRCLE_Z_M = 6.525
+
+
 function ChandelierModel() {
   // chandelier.glb — true-metre cut (1.50 m span, re-verified at copy time).
-  // Ed's worksite export does not carry the chandelier; it is its own asset,
-  // anchored on the chandelier fixtures' centroid from fixtures.json — the
-  // same convention as the twin app, so both worlds hang it in one place.
+  // Ed's worksite export does not carry the chandelier; it is its own asset.
+  // XY anchors on the chandelier fixtures' centroid (fixtures.json); HEIGHT
+  // hangs the glb's top flush with the roof circle per Elliot 08-17 — the
+  // fixture centroid z (3.72) is where the LIGHTS hang, not the structure.
   const { scene } = useGLTF('/chandelier.glb')
   const [at, setAt] = useState<[number, number, number] | null>(null)
   useEffect(() => {
@@ -56,7 +64,9 @@ function ChandelierModel() {
         const ch = (j.fixtures ?? []).filter((f) => f.role === 'chandelier')
         if (ch.length === 0) return
         const s = ch.reduce((a, f) => [a[0] + f.position[0], a[1] + f.position[1], a[2] + f.position[2]], [0, 0, 0])
-        setAt(BLENDER_TO_THREE([s[0] / ch.length, s[1] / ch.length, s[2] / ch.length]))
+        // height is set after the glb measures itself (see render) — only
+        // the plan position comes from the fixture centroid
+        setAt(BLENDER_TO_THREE([s[0] / ch.length, s[1] / ch.length, 0]))
       })
       .catch(() => setAt(null))
   }, [])
@@ -67,7 +77,10 @@ function ChandelierModel() {
     return Math.max(size.x, size.y, size.z) > 5 ? 0.1 : 1
   }, [scene])
   // Amber, the twin's chandelier convention — inside the gray trunk lattice
-  // an unstyled gray mesh reads as more structure and disappears.
+  // an unstyled gray mesh reads as more structure and disappears. The asset
+  // itself is the chime-free FRAME (Elliot 08-17: "no wind chimes") — the
+  // cut is baked into chandelier.glb (2.5k tris, 8KB), not patched at
+  // runtime: geometry ships to the Mirror as geometry.
   const styled = useMemo(() => {
     const s = scene.clone(true)
     const mat = new MeshStandardMaterial({ color: '#c08a3e', roughness: 0.65, metalness: 0.35 })
@@ -76,8 +89,13 @@ function ChandelierModel() {
     })
     return s
   }, [scene])
+  // hang: top of the (scaled) chandelier touches the roof circle plane
+  const hangY = useMemo(() => {
+    const size = new Box3().setFromObject(scene).getSize(new Vector3())
+    return ROOF_CIRCLE_Z_M - (size.y * scale) / 2
+  }, [scene, scale])
   if (!at) return null
-  return <primitive object={styled} position={at} scale={scale} />
+  return <primitive object={styled} position={[at[0], hangY, at[2]]} scale={scale} />
 }
 
 /** Exposes the three scene on window for the stage regression's scene-graph
