@@ -104,13 +104,22 @@ function GroundRing({ r, opacity }: { r: number; opacity: number }) {
   )
 }
 
-/** Assignable perimeter slot (Elliot: two per pole station). */
-interface PlSlot {
+/** An assignable seat in the world — a worksite perimeter slot (PL-NN-A/B)
+ *  or a designed fixture seat from fixtures.json (F-ids, 130 total).
+ *  Every seat is a tap target — Elliot's standing rule (bf18a5c1). */
+interface SeatDef {
   id: string
   station: string
+  kind: 'worksite' | 'fixture'
   plan: { x: number; y: number }
   p: [number, number, number]
 }
+
+/** F106-F129 (fixtures.json perimeter class) render-gate: their move to the
+ *  r 15.07 worksite ring awaits Elliot's ruling (perimeter_id_map.json).
+ *  Until then the PL-NN-A/B worksite slots represent the perimeter and the
+ *  F-seats stay hidden — flip this ONE line when the ruling lands. */
+const SHOW_FIXTURE_PERIMETER_SEATS = false
 
 export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const seats = useMirror((s) => s.seats)
@@ -120,7 +129,8 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const activeTags = useMirror((s) => s.activeTags)
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
-  const [plSlots, setPlSlots] = useState<PlSlot[]>([])
+  const [plSlots, setPlSlots] = useState<SeatDef[]>([])
+  const [fxSeats, setFxSeats] = useState<SeatDef[]>([])
   const [rings, setRings] = useState<{ light: number; rope: number } | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [slotSel, setSlotSel] = useState<string | null>(null)
@@ -157,12 +167,31 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
           j.slots.map((s) => ({
             id: s.id,
             station: s.id.slice(0, 5), // PL-NN
+            kind: 'worksite' as const,
             plan: { x: s.pos_m[0], y: s.pos_m[1] },
             p: BLENDER_TO_THREE(s.pos_m),
           })),
         )
       })
       .catch(() => setPlSlots([]))
+    // Designed fixture seats — every seat is a tap target (Elliot's standing
+    // rule). Perimeter F-seats are gated on the F106-F129 ruling (see const).
+    fetch('/fixtures.json')
+      .then((r) => r.json())
+      .then((j: { fixtures?: { fixture_id: string; role: string; position: number[] }[] }) => {
+        setFxSeats(
+          (j.fixtures ?? [])
+            .filter((f) => SHOW_FIXTURE_PERIMETER_SEATS || f.role !== 'perimeter')
+            .map((f) => ({
+              id: f.fixture_id,
+              station: f.role,
+              kind: 'fixture' as const,
+              plan: { x: f.position[0], y: f.position[1] },
+              p: BLENDER_TO_THREE(f.position),
+            })),
+        )
+      })
+      .catch(() => setFxSeats([]))
     fetch('/tree_footprint.json')
       .then((r) => r.json())
       .then(
@@ -191,7 +220,8 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
     return () => clearInterval(t)
   }, [])
 
-  const zBySlot = useMemo(() => new Map(plSlots.map((s) => [s.id, s.p[1]])), [plSlots])
+  const allSeats = useMemo(() => [...plSlots, ...fxSeats], [plSlots, fxSeats])
+  const zBySlot = useMemo(() => new Map(allSeats.map((s) => [s.id, s.p[1]])), [allSeats])
   const macBySlot = useMemo(() => {
     const m = new Map<string, string>()
     for (const [mac, seat] of Object.entries(seats)) if (seat.slot) m.set(seat.slot, mac)
@@ -210,7 +240,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const sel = selected ? telemetry.fixtures.find((f) => f.fixtureId === selected) : undefined
   const selSeat = selected ? seats[selected] : undefined
   const selNode = selected ? nodes.find((n) => n.id === selected) : undefined
-  const slot = slotSel ? plSlots.find((s) => s.id === slotSel) : undefined
+  const slot = slotSel ? allSeats.find((s) => s.id === slotSel) : undefined
   const slotMac = slot ? macBySlot.get(slot.id) : undefined
   // Strongest RSSI first: the light in the installer's hand is usually the
   // loudest one the bridge hears — it belongs at the top of the picker.
@@ -266,19 +296,22 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
           </>
         )}
 
-        {/* assignable perimeter slots — SOCKETS, not lights: empty = hollow
-            ring; occupied = no marker (the seated light itself renders) */}
-        {plSlots.map((s) => {
+        {/* assignable seats — SOCKETS, not lights: empty = hollow ring;
+            occupied = no marker (the seated light itself renders). Worksite
+            PL slots draw large on the open ring; fixture seats draw small
+            (they sit dense in the canopy). Every seat is a tap target. */}
+        {allSeats.map((s) => {
           const occupied = macBySlot.has(s.id)
+          const big = s.kind === 'worksite'
           return (
             <group key={s.id} position={s.p}>
               {!occupied && (
                 <mesh rotation-x={-Math.PI / 2}>
-                  <torusGeometry args={[0.24, 0.045, 8, 24]} />
+                  <torusGeometry args={[big ? 0.24 : 0.13, big ? 0.045 : 0.03, 8, 24]} />
                   <meshBasicMaterial
                     color={slotSel === s.id ? '#5b8cff' : '#7b8aa3'}
                     transparent
-                    opacity={slotSel === s.id ? 1 : 0.7}
+                    opacity={slotSel === s.id ? 1 : big ? 0.7 : 0.45}
                   />
                 </mesh>
               )}
@@ -290,7 +323,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                   setSlotSel(s.id === slotSel ? null : s.id)
                 }}
               >
-                <sphereGeometry args={[0.9, 8, 8]} />
+                <sphereGeometry args={[big ? 0.9 : 0.45, 8, 8]} />
                 <meshBasicMaterial transparent opacity={0} depthWrite={false} />
               </mesh>
             </group>
@@ -370,7 +403,11 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
         <div className="light-card">
           <div className="light-card-head">
             <span className="mono">{slot.id}</span>
-            <span className="muted small">station {slot.station} · {slot.id.endsWith('A') ? 'CCW' : 'CW'} pole side</span>
+            <span className="muted small">
+              {slot.kind === 'worksite'
+                ? `station ${slot.station} · ${slot.id.endsWith('A') ? 'CCW' : 'CW'} pole side`
+                : `${slot.station} seat`}
+            </span>
           </div>
           {slotMac ? (
             <>

@@ -44,6 +44,15 @@ async (page) => {
     const m = c0.match(/(\d+) heard · (\d+) not yet located · (\d+) self-located · (\d+) seated/);
     check('census parses', !!m, c0);
 
+    // 1b · seat layer: 130 tap targets in the scene graph (24 worksite PL +
+    // 106 fixture seats; F-perimeter hidden behind the ruling flag)
+    const sockets = await p.evaluate(() => {
+      let tori = 0;
+      window.__mirrorScene?.traverse((o) => { if (o.isMesh && o.geometry?.type === 'TorusGeometry') tori++; });
+      return tori;
+    });
+    check('130 seat sockets render', sockets === 130, String(sockets));
+
     // 2 · tap slot → card opens
     await p.touchscreen.tap(181, 453);
     await p.waitForTimeout(500);
