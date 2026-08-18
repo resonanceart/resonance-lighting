@@ -128,11 +128,15 @@ def main():
         events = diff(prev, cur, now) if prev else []
         if events:
             stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
-            with open(args.log, "a", encoding="utf-8") as f:
-                for e in events:
-                    e["at"] = stamp
-                    f.write(json.dumps(e) + "\n")
-                    print(json.dumps(e), flush=True)
+            for e in events:
+                e["at"] = stamp
+                print(json.dumps(e), flush=True)
+            # only --follow owns the durable log: a concurrent --wake wire
+            # writing the same file produced duplicate rows (seen live 08-18)
+            if args.follow:
+                with open(args.log, "a", encoding="utf-8") as f:
+                    for e in events:
+                        f.write(json.dumps(e) + "\n")
             if args.wake:
                 return
         prev = cur

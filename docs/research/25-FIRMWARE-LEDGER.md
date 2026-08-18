@@ -28,10 +28,16 @@ the final one-image `p` fleet artifact does not exist yet (listener is still a c
 
 ## ⚡ ROLLOUT IN FLIGHT — 2026-08-17 ~19:5x PDT (watched live)
 
-**`fx-260818-f80f315-b` landing NOW: 48 fixtures converted** (software resets, uptimes 1.5–2.4
-min when caught) — incl. legacy `F3FD88` (finally captured!) and `9F26BC`. Remaining: 12×05ed4b3
-· 31×ec7f28d (holdback-shaped). LOG entry for f80f315 NOT pushed yet — rollout ahead of record;
-source is certainly `29ebe2b` (**ADR 0045**, pushed 19:45 PDT):
+**WAVE SETTLED ~20:06 PDT: `fx-260818-f80f315-b` on 69 of 101** (watched end-to-end via
+tools/fleet-events.py; full record /tmp/fleet-events.jsonl). Highlights: legacy `F3FD88`
+captured · **`9E5B44` ACCEPTED AND SURVIVED** (the double-rollback fixture — 4.6 min uptime past
+the 20 s gate; its rollback saga is CLOSED by this image, charge-path bench item remains) ·
+GPS anchor `F2BDB4` now on the survey-capable image · dusk-rescue chargers converted incl.
+`F401DC` (took 3 attempts). Remaining: 18×ec7f28d · 6×05ed4b3 · 4×prtrel1 (incl. bench-candidate
+`F2BDFC`) · 2×otafix1 · 1 each 29ac840/9ef4324. **The one true straggler with a diagnosis:
+`9F26D8` — 3× maint START_FAILED in one hour (mesh fine, WiFi join fails at its position; 13 h
+uptime, never rebooted). Field action: USB visit or closer/ch-11 AP.** LOG entry for f80f315
+not pushed yet — rollout ahead of record; source is certainly `29ebe2b` (**ADR 0045**, 19:45 PDT):
 - **Transport sleep**: 32-bit rails-off timer for the Nevada City pack-out; auto wake restores
   radio/telemetry; RTC-retained latch keeps LEDs dark until a valid program command (bare `b`
   clears it) — dark-through-transport without opening fixtures.
