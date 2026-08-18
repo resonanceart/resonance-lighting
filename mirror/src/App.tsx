@@ -23,11 +23,24 @@ function useTelemetry(): { telemetry: Telemetry; status: FeedStatus } {
     listenWindowS: 60,
     serialConnected: false,
     serialError: null,
+    bridgeFwRev: null,
     fixtures: [],
   })
   const [status, setStatus] = useState<FeedStatus>('connecting')
 
-  useEffect(() => connectDashboard(dataSource.url, setTelemetry, setStatus), [dataSource.url])
+  useEffect(
+    () =>
+      connectDashboard(
+        dataSource.url,
+        (t) => {
+          setTelemetry(t)
+          // Verb-capability gate reads this in the store (tag fence).
+          if (useMirror.getState().bridgeFw !== t.bridgeFwRev) useMirror.setState({ bridgeFw: t.bridgeFwRev })
+        },
+        setStatus,
+      ),
+    [dataSource.url],
+  )
 
   return { telemetry, status }
 }

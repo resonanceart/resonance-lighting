@@ -71,6 +71,7 @@ export function mapState(json: unknown): Telemetry {
   const root = (json ?? {}) as Record<string, unknown>
   const peers = (root.peers ?? {}) as Record<string, PeerRow>
   const serial = (root.serial ?? {}) as Record<string, unknown>
+  const master = (root.master ?? {}) as Record<string, unknown>
   const now = Date.now()
   return {
     now,
@@ -80,6 +81,7 @@ export function mapState(json: unknown): Telemetry {
     listenWindowS: 60,
     serialConnected: serial.connected === true,
     serialError: str(serial.error) ?? null,
+    bridgeFwRev: str(master.firmware_rev) ?? null,
     fixtures: Object.entries(peers).map(([id, row]) => mapPeer(id, row, now)),
   }
 }
@@ -100,6 +102,18 @@ export function liveness(t: Telemetry, f: FixtureState): PeerLiveness {
 export function isHeard(t: Telemetry, f: FixtureState): boolean {
   const win = t.listenWindowS * 1000
   return f.lastHeardMs < win && (f.rowAgeMs === undefined || f.rowAgeMs < win)
+}
+
+/** Can this bridge forward T tags? case 'T' first shipped in
+ *  cores3-bridge-2026-08-16.1 (LX source check: 15a318c/d4b1405 = 08-15.1
+ *  → zero hits; 35d1a1e = 08-16.1 → present). Older bridges swallow the
+ *  verb char-by-char while the dashboard still prints Sent — emitting
+ *  through one would reproduce that lie inside the Mirror. Unknown fw
+ *  (null) counts as incapable: refuse until the bridge introduces itself. */
+export function tagCapable(fw: string | null): boolean {
+  const m = fw?.match(/(\d{4}-\d{2}-\d{2})\.(\d+)$/)
+  if (!m) return false
+  return m[1] > '2026-08-16' || (m[1] === '2026-08-16' && Number(m[2]) >= 1)
 }
 
 export type FeedStatus = 'connecting' | 'live' | 'error'

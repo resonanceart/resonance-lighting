@@ -101,6 +101,10 @@ export interface Telemetry {
    *  (freshness triple-rule, contract §2 @ 16ed84d). */
   serialConnected: boolean
   serialError: string | null
+  /** master.firmware_rev from the feed envelope (null until the bridge's
+   *  first master line). Gates verb capability: 08-15.1 bridges swallow
+   *  T/B char-by-char as unknown opcodes — the silent-no-op class. */
+  bridgeFwRev: string | null
   fixtures: FixtureState[]
 }
 

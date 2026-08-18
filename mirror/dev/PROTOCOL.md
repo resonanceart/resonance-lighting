@@ -56,6 +56,14 @@ Captures (`dev/state-capture-*.json`) stay untracked. Secrets never exist here.
   layer; dangerous verbs get confirm dialogs; dark-lease UI version-gated.
 - The dashboard daemon is the ONLY serial writer; the Mirror only speaks
   through its proxied HTTP surface.
+- **The freshness triple-rule is a named gate** for anything that ACTS on a
+  peer list (tags, future strikes/sleeps, actuation of any kind): live =
+  `age_ms < 5s AND now − ts_utc < 3s AND serial.connected`. Frozen data never
+  drives action. (LX addition, consented 08-18.)
+- **Verb capability gates**: a verb is only emitted when the bridge firmware
+  is known to forward it (`tagCapable` pattern — the 08-15.1 no-`case 'T'`
+  incident). A dashboard "ok" means written-to-serial, NOT bridge-acked;
+  never present it as more.
 
 ## 6 · Conflicts + disputes
 Merge conflicts: never resolve someone else's side silently — surface in the
@@ -64,6 +72,8 @@ ruling to Elliot (the §0.5 pattern). When sources disagree: live git/feed
 state > thread decisions > this doc > memory.
 
 ---
-v1 · 2026-08-18 · drafted by MIRROR (network-tester), consent BLD + LX in
-`mirror-launch-night-triangle`. Amend by PR-style: propose in-thread, land the
-edit with the consenting turn linked in the commit message.
+v1 · 2026-08-18 · drafted by MIRROR (network-tester). **CONSENTED by all
+three lanes** in `mirror-build-live` (0b44039d): BLD turn 91174ef2 · LX turn
+e65fc0d8 (whose §5 triple-rule addition is incorporated above). Amend
+PR-style: propose in-thread, land the edit with the consenting turn linked in
+the commit message.
