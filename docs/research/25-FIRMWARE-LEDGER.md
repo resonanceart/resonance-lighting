@@ -33,8 +33,8 @@ tools/fleet-events.py; full record /tmp/fleet-events.jsonl). Highlights: legacy 
 captured · **`9E5B44` ACCEPTED AND SURVIVED** (the double-rollback fixture — 4.6 min uptime past
 the 20 s gate; its rollback saga is CLOSED by this image, charge-path bench item remains) ·
 GPS anchor `F2BDB4` now on the survey-capable image · dusk-rescue chargers converted incl.
-`F401DC` (took 3 attempts). Remaining: 18×ec7f28d · 6×05ed4b3 · 4×prtrel1 (incl. bench-candidate
-`F2BDFC`) · 2×otafix1 · 1 each 29ac840/9ef4324. **The one true straggler with a diagnosis:
+`F401DC` (took 3 attempts). Remaining after mop-up: 11×ec7f28d · 3×05ed4b3 · 2×otafix1 ·
+1×9ef4324. **The one true straggler with a diagnosis:
 `9F26D8` — 3× maint START_FAILED in one hour (mesh fine, WiFi join fails at its position; 13 h
 uptime, never rebooted). Field action: USB visit or closer/ch-11 AP.** LOG entry for f80f315
 not pushed yet — rollout ahead of record; source is certainly `29ebe2b` (**ADR 0045**, 19:45 PDT):
