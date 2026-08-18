@@ -26,6 +26,24 @@ the final one-image `p` fleet artifact does not exist yet (listener is still a c
 
 ---
 
+## ⚡ ROLLOUT IN FLIGHT — 2026-08-17 ~19:5x PDT (watched live)
+
+**`fx-260818-f80f315-b` landing NOW: 48 fixtures converted** (software resets, uptimes 1.5–2.4
+min when caught) — incl. legacy `F3FD88` (finally captured!) and `9F26BC`. Remaining: 12×05ed4b3
+· 31×ec7f28d (holdback-shaped). LOG entry for f80f315 NOT pushed yet — rollout ahead of record;
+source is certainly `29ebe2b` (**ADR 0045**, pushed 19:45 PDT):
+- **Transport sleep**: 32-bit rails-off timer for the Nevada City pack-out; auto wake restores
+  radio/telemetry; RTC-retained latch keeps LEDs dark until a valid program command (bare `b`
+  clears it) — dark-through-transport without opening fixtures.
+- **Bounded RSSI survey — THE SELF-LOCATION UNLOCK**: neighbor cache 24 → full 160-device
+  envelope; during an explicit `L[seconds]` window each fixture reports its complete fresh heard
+  roster in 16-entry fragments (~20 s cadence); bridge emits directed `nb-rssi` rows;
+  `ops/locate/rssi_capture.py` logs canonical JSONL "for offline grid-recovery experiments."
+  Ben's own framing: feasibility data (RSSI EWMA samples), not production coordinates — exactly
+  doc 28's L2 verification posture. Costs 5.9 KB fixture RAM.
+⚠ Bridge support for `L` presumably needs the NEW bridge fw — re-check grammar after his next
+push; our E39A34 (08-15.1) certainly lacks it.
+
 ## CURRENT STATE — 2026-08-17 evening (post small-fixes rollout)
 
 **Fleet standard fixture image: `fx-260818-05ed4b3-b`** (small fixes: real blackout + anchors)
