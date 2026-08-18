@@ -45,6 +45,12 @@
 
 **World frame:** fixtures.json is tree-local metres; survey two ground-truth points at the
 worksite once (GPS or tape from datum) and every bound light inherits playa coordinates.
+**UPDATE 08-17 evening — Ben has hardware anchors:** the `05ed4b3-b` rollout's read-only anchor
+inventory found a **SAM-M8Q GPS on `F2BDB4`** and DS3231 RTCs on `9F0E7C`/`9F26C0` — 3 of 8
+purchased anchor boards (rest unproven, holdbacks weren't probed). A GPS-bearing fixture, once
+seat-bound, pins the tree frame to earth by itself; two GPS anchors (if another surfaces) or
+GPS + one surveyed point closes the rotation. Sensor_bits bit 4/5 now report anchors in every
+rich heartbeat — the Mirror can badge them exactly like Ben's dashboard does (G/R badges).
 
 ## 3 · CLICK-TO-CONTROL LADDER (Elliot: "clickable and controllable")
 

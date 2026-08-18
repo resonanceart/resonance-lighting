@@ -6,7 +6,7 @@
 > This file is the derived quick-answer sheet so nobody has to re-mine the log at the bench.
 > Contract: ADR 0040 + `docs/howto/FIRMWARE_ARTIFACT_HANDOFF.md`.
 >
-> **Last refreshed: 2026-08-17 ~07:00 PDT** from `upstream/codex/deep-recovery-canary @ 1f1edfd`.
+> **Last refreshed: 2026-08-17 ~19:00 PDT** from `upstream/codex/deep-recovery-canary @ e4d6dbf`.
 
 ---
 
@@ -26,9 +26,36 @@ the final one-image `p` fleet artifact does not exist yet (listener is still a c
 
 ---
 
-## CURRENT STATE — 2026-08-17 morning
+## CURRENT STATE — 2026-08-17 evening (post small-fixes rollout)
 
-**Fleet standard fixture image: `fx-260817-ec7f28d-b`** (hardened presence wave)
+**Fleet standard fixture image: `fx-260818-05ed4b3-b`** (small fixes: real blackout + anchors)
+- source commit `e09f46f` · recipe `05ed4b3f…` · binary SHA-256 `2986a029…67e1db` · 1,176,000 B
+- **60 of 60 attempted verified** (canary `F40174` + 56 main wave + 3 safe tail), evidence in
+  `ops/bench/data/ca/20260818-01*-fleet-ota-results.jsonl`; low/recovery/anomalous/silent
+  fixtures deliberately HELD BACK → **31 remain on `ec7f28d-b`** (live census 19:00 PDT:
+  60×05ed4b3 · 31×ec7f28d · 4×prtrel1 · 3×otafix1 · 2×9ef4324 · 1×29ac840 = 101 peers)
+- Rollout ended under a live `B3600` blackout — all 60 verified rail-OFF, zero lit pixels.
+
+### `fx-260818-05ed4b3-b` — what changed vs ec7f28d (behavior)
+- **Dark lease now cuts the PHYSICAL LED rail** (an active `PROG_COMMISSION_DARK` is
+  distinguishable from the unleased commission fallback — basic-listener returns no frame).
+- **Wave latch retired by explicit authority**: accepted program leases / direct-frame
+  microleases clear the persisted wave color, and autonomous presence events are suppressed
+  while a lease is active — a prior wave no longer reappears when a blackout expires.
+- **Anchor inventory (read-only, sensor_bits append)**: bit 4 = SAM-M8Q **GPS** ACK @0x42,
+  bit 5 = DS3231 **RTC** @0x68. Found so far: GPS on `F2BDB4` · RTC on `9F0E7C`, `9F26C0`
+  (3 of 8 purchased anchor boards; absence unproven — holdbacks weren't probed).
+- Ben's dashboard adds G/R anchor badges + tracks rich-report age separately from short-hb age
+  (fixes the cached-revision display trap).
+
+### Dusk USB rescue (same session)
+9 low fixtures charging on USB: F402A4 F401DC 9F0E5C F2BDD4 9E5B34 F2BF7C F3FD28 9F2714 9E5A94.
+**4 accept ≤1 mA → battery/charge-path BENCH candidates: `F2BDFC` `F2B900` `F40314` `9E5B44`**
+(F2BDFC matches our 2,256 mV census find). Some dark perimeter fixtures remain unrescued
+(cables ran out) — their silence is NOT yet evidence of a dead battery.
+Field visual census: 74 canopy + 8 trunk + 24 perimeter installed (1 intentionally batteryless).
+
+**Superseded standard: `fx-260817-ec7f28d-b`** (hardened presence wave)
 - source commit `e70cb86` · recipe `ec7f28d9…` · binary SHA-256 `1598f550…b40f2b7` · 1,175,648 B
 - accepted on **71 fixtures** (70 batch + canary `F40364`), evidence-gated per ADR 0040 §6
 
