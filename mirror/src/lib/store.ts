@@ -142,8 +142,11 @@ interface MirrorStore {
   dataSource: DataSource
   /** Fix points: human-pinned positions, the locate solver's anchors. */
   seats: SeatMap
-  /** Log of fenced command emissions (v1 has no radio — this is the audit trail). */
+  /** Log of every fenced command emission — the audit trail. */
   commandLog: { at: number; cmd: MirrorCommand }[]
+  /** Tags this tab currently holds (id → lease-expiry ms). Renewal rides
+   *  ensureTagRenewer; the WORLD's tag truth is the fixture's own led_g. */
+  activeTags: Record<string, number>
 
   setDataSource: (s: DataSource) => void
   pinSeat: (id: string, x: number, y: number, slot?: string) => void
@@ -162,6 +165,8 @@ interface MirrorStore {
   resetLayout: () => void
   importLayout: (doc: LayoutDoc) => void
   send: (cmd: MirrorCommand) => void
+  /** Click-to-control C0: toggle the steady-green tag on one light. */
+  toggleTag: (id: string) => void
 }
 
 function persist(layout: LayoutDoc) {
@@ -185,6 +190,7 @@ export const useMirror = create<MirrorStore>((set, get) => ({
   dataSource: loadSource(),
   seats: loadSeats(),
   commandLog: [],
+  activeTags: {},
 
   pinSeat: (id, x, y, slot) =>
     set((s) => {
@@ -300,26 +306,64 @@ export const useMirror = create<MirrorStore>((set, get) => ({
       return { layout: doc, activePageId: doc.pages[0]?.id ?? '' }
     }),
 
-  /** THE COMMAND FENCE. v1 allowlist is exactly NB_IDENTIFY — the same
-   *  precedent as net_bench_dashboard's vetted panel. Anything else throws. */
+  /** THE COMMAND FENCE. Allowlist (design 28 @ 8b5fb0c, comms-owner
+   *  sanctioned, Elliot-directed): NB_IDENTIFY ('i<MAC6>'/'I' — pixel-
+   *  INVISIBLE on today's fleet, kept for wire tests) and TAG ('T<id>:1|0'
+   *  — the VISIBLE green instrument, 255s RAM-only lease). Anything else
+   *  throws. All sends ride the dashboard's own vetted POST /api/cmd,
+   *  re-validated server-side — the dashboard stays the ONLY serial writer
+   *  (rate discipline, memo 28). Fire-and-forget: UI never blocks on radio. */
   send: (cmd) => {
-    if (cmd.verb !== 'NB_IDENTIFY') {
-      throw new Error(`Command fence: ${String((cmd as { verb: string }).verb)} is not in the v1 allowlist`)
+    if (cmd.verb !== 'NB_IDENTIFY' && cmd.verb !== 'TAG') {
+      throw new Error(`Command fence: ${String((cmd as { verb: string }).verb)} is not in the allowlist`)
     }
-    console.info('[mirror:fence] emit', cmd)
+    const wire =
+      cmd.verb === 'NB_IDENTIFY'
+        ? cmd.target === 'all'
+          ? 'I'
+          : `i${cmd.target.toUpperCase()}`
+        : `T${cmd.target.toUpperCase()}:${cmd.on ? 1 : 0}`
+    console.info('[mirror:fence] emit', wire)
     set((s) => ({ commandLog: [{ at: Date.now(), cmd }, ...s.commandLog].slice(0, 50) }))
-    // v2 (2026-08-17, launch night): the fence now actually EMITS — through
-    // the bench dashboard's own vetted POST /api/cmd, in its serial syntax
-    // ('i<MAC6>' one peer, 'I' all), re-validated server-side by
-    // valid_command(). Fire-and-forget: the UI never blocks on the radio.
-    const wire = cmd.target === 'all' ? 'I' : `i${cmd.target.toUpperCase()}`
     fetch(`${get().dataSource.url.replace(/\/+$/, '')}/api/cmd`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cmd: wire, label: `NB_IDENTIFY ${cmd.target}` }),
+      body: JSON.stringify({ cmd: wire, label: `${cmd.verb} ${cmd.target}` }),
     })
       .then((r) => r.json())
       .then((j) => console.info('[mirror:fence] dashboard ack', j))
       .catch((e) => console.warn('[mirror:fence] emit failed (feed down?)', e))
   },
+
+  toggleTag: (id) => {
+    const on = !(id in get().activeTags)
+    get().send({ verb: 'TAG', target: id, on })
+    set((s) => {
+      const activeTags = { ...s.activeTags }
+      if (on) activeTags[id] = Date.now() + 255_000
+      else delete activeTags[id]
+      return { activeTags }
+    })
+    ensureTagRenewer()
+  },
 }))
+
+/** Tag leases are 255s RAM-only on the fixture; the dashboard renews its own
+ *  at 120s. Same discipline here: re-send every 110s while this tab holds
+ *  tags; the interval dissolves when the last tag clears. A dead tab
+ *  self-heals — the fixture lease simply expires. Browser-runtime only. */
+let renewTimer: ReturnType<typeof setInterval> | null = null
+function ensureTagRenewer() {
+  if (renewTimer) return
+  renewTimer = setInterval(() => {
+    const s = useMirror.getState()
+    const ids = Object.keys(s.activeTags)
+    if (!ids.length) {
+      clearInterval(renewTimer!)
+      renewTimer = null
+      return
+    }
+    for (const id of ids) s.send({ verb: 'TAG', target: id, on: true })
+    useMirror.setState({ activeTags: Object.fromEntries(ids.map((id) => [id, Date.now() + 255_000])) })
+  }, 110_000)
+}

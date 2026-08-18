@@ -51,6 +51,9 @@ function mapPeer(id: string, row: PeerRow, now: number): FixtureState {
     rowAgeMs: rowTs ? Math.max(0, now - Date.parse(rowTs)) : undefined,
     fwRev: str(row.firmware_rev) ?? '—',
     activeProgram: str(row.active_program) ?? str(row.ca_state) ?? str(row.peer_mode) ?? '—',
+    ledR: num(row.led_r) ?? null,
+    ledG: num(row.led_g) ?? null,
+    ledB: num(row.led_b) ?? null,
     lifeState: str(row.field_phase) ?? null,
   }
 }

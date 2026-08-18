@@ -76,6 +76,12 @@ export interface FixtureState {
   rowAgeMs?: number
   fwRev: string
   activeProgram: string
+  /** Render tail led_r/g/b (carry-forward: can be OLDER than ts_utc — "last
+   *  known", contract §2). Null = not reported. The Mirror shows tag state
+   *  from THIS, the fixture's own truth — never from our send intent. */
+  ledR: number | null
+  ledG: number | null
+  ledB: number | null
   /** null on a running fixture; real value only when dormant. null ≠ 0. */
   lifeState: string | null
   usb?: { state: 'CONNECTED' | 'PASS' | 'FAIL' | 'UNPLUGGED'; port: string; holdRemainingS?: number }
@@ -104,5 +110,11 @@ export interface WidgetDataProps {
   send: (cmd: MirrorCommand) => void
 }
 
-/** v1 sendable surface: exactly one verb. */
-export type MirrorCommand = { verb: 'NB_IDENTIFY'; target: string | 'all' }
+/** Sendable surface (design 28 @ 8b5fb0c, comms-owner sanctioned, Elliot-directed):
+ *  NB_IDENTIFY — legacy 'i' blink; pixel-INVISIBLE on today's fleet (color=0
+ *    default, fixture.ino:168) — kept for the wire-shape tests.
+ *  TAG — the VISIBLE instrument: T<id>:1 = steady green 128, 255s renewable
+ *    RAM-only lease; T<id>:0 clears. C0 of click-to-control. */
+export type MirrorCommand =
+  | { verb: 'NB_IDENTIFY'; target: string | 'all' }
+  | { verb: 'TAG'; target: string; on: boolean }
