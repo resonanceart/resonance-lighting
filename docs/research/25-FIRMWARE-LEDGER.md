@@ -28,7 +28,7 @@ the final one-image `p` fleet artifact does not exist yet (listener is still a c
 
 ## ⚡ ROLLOUT IN FLIGHT — 2026-08-17 ~19:5x PDT (watched live)
 
-**WAVE SETTLED ~20:06 PDT: `fx-260818-f80f315-b` on 69 of 101** (watched end-to-end via
+**WAVE SETTLED ~20:15 PDT after mop-up: `fx-260818-f80f315-b` on 84 of 101** (69 main + 15 mop-up — incl. ALL FOUR ≤1 mA bench candidates F2BDFC/F2B900/F40314/9E5B44 at 2.43–2.45 V on charge-only USB) (watched end-to-end via
 tools/fleet-events.py; full record /tmp/fleet-events.jsonl). Highlights: legacy `F3FD88`
 captured · **`9E5B44` ACCEPTED AND SURVIVED** (the double-rollback fixture — 4.6 min uptime past
 the 20 s gate; its rollback saga is CLOSED by this image, charge-path bench item remains) ·
