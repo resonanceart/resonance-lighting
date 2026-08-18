@@ -145,6 +145,10 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const unpinSeat = useMirror((s) => s.unpinSeat)
   const toggleTag = useMirror((s) => s.toggleTag)
   const activeTags = useMirror((s) => s.activeTags)
+  // Capability truth from the fence (88bdaf47): buttons disable with the
+  // reason in hand instead of letting a tap hit the refusal.
+  const tagCapable = useMirror((s) => s.tagCapable)
+  const tagRefusalReason = useMirror((s) => s.tagRefusalReason)
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
   const [plSlots, setPlSlots] = useState<SeatDef[]>([])
@@ -438,7 +442,8 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                   <button
                     className="btn-line"
                     onClick={() => toggleTag(slotMac)}
-                    title="Steady-green tag this light in the real world"
+                    disabled={!tagCapable}
+                    title={tagCapable ? 'Steady-green tag this light in the real world' : (tagRefusalReason ?? 'bridge cannot tag yet')}
                   >
                     {activeTags[slotMac] ? 'Untag' : 'Tag'}
                   </button>
@@ -464,8 +469,12 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                 <button
                   className="btn-line"
                   onClick={() => toggleTag(seatPick)}
-                  disabled={!seatPick}
-                  title="Steady-green tag the picked light so you can confirm it is the one in your hand"
+                  disabled={!seatPick || !tagCapable}
+                  title={
+                    tagCapable
+                      ? 'Steady-green tag the picked light so you can confirm it is the one in your hand'
+                      : (tagRefusalReason ?? 'bridge cannot tag yet')
+                  }
                 >
                   {seatPick && activeTags[seatPick] ? 'Untag' : 'Tag'}
                 </button>
@@ -501,7 +510,8 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
               <button
                 className="btn-line"
                 onClick={() => toggleTag(selected)}
-                title="Steady-green tag this light in the real world"
+                disabled={!tagCapable}
+                title={tagCapable ? 'Steady-green tag this light in the real world' : (tagRefusalReason ?? 'bridge cannot tag yet')}
               >
                 {activeTags[selected] ? 'Untag' : 'Tag'}
               </button>

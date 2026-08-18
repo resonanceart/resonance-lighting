@@ -81,11 +81,22 @@ async (page) => {
       seatedMac = await p.evaluate(() => document.querySelector('.light-card select option:nth-child(2)')?.value ?? null);
       if (seatedMac) {
         await p.selectOption('.light-card select', seatedMac);
-        // 4a · Tag is intercepted, wire shape asserted (T<MAC>:1, design 28 C0)
-        const blinkBtns = await p.$$('.light-card button');
-        for (const b of blinkBtns) if ((await b.innerText()) === 'Tag') { await b.click(); break; }
-        await p.waitForTimeout(400);
-        check('tag emits T<MAC>:1', cmdPosts.some((c) => c.cmd === 'T' + seatedMac.toUpperCase() + ':1'), JSON.stringify(cmdPosts));
+        // 4a · Tag path is CAPABILITY-AWARE (fence 88bdaf47): capable bridge →
+        // click must emit T<MAC>:1 (intercepted); incapable bridge → button
+        // must be DISABLED with the refusal reason, and NOTHING may emit.
+        const tagBtn = (await p.$$('.light-card button')).length
+          ? await (async () => { for (const b of await p.$$('.light-card button')) if ((await b.innerText()) === 'Tag') return b; return null; })()
+          : null;
+        const tagDisabled = tagBtn ? await tagBtn.isDisabled() : true;
+        if (!tagDisabled) {
+          await tagBtn.click();
+          await p.waitForTimeout(400);
+          check('tag emits T<MAC>:1', cmdPosts.some((c) => c.cmd === 'T' + seatedMac.toUpperCase() + ':1'), JSON.stringify(cmdPosts));
+        } else {
+          const reason = tagBtn ? await tagBtn.getAttribute('title') : null;
+          check('tag refused honestly (disabled + reason, zero emissions)',
+            cmdPosts.length === 0 && !!reason && reason.length > 5, `reason=${reason} posts=${JSON.stringify(cmdPosts)}`);
+        }
         await p.click('.light-card .btn-accent');
         await p.waitForTimeout(600);
         const c1 = await census();
