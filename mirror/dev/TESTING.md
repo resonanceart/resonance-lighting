@@ -40,6 +40,10 @@ silent — crosses the 60 s listen window) and GHOST (1 h stale).
   step; the automated lane never fires it — and it doubles as the C0
   closed-loop confirmation MIRROR's telemetry test could not settle) →
   Seat → dot appears at the slot → Untag.
+  ⚠ KNOWN-INERT until bridge E39A34 is reflashed to fw ≥2026-08-16.1:
+  the 08-15.1 bridge has no `case 'T'` and silently swallows tags (LX,
+  source-verified). The dashboard's ok:true only means written-to-serial.
+  Reflash is escalated to Elliot; DELETE this caveat once it lands.
 - Kill the light's power (or walk it out of range): within 60 s the census
   shows `(1 silent)` and the dot goes muted. Restore: it recovers.
 - Two phones? Remember seats are PER DEVICE until the shared seat layer ships
