@@ -34,7 +34,10 @@
   .page-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 .span-1 { grid-column: span 1; }
-.span-2 { grid-column: span 2; }
+/* span-2 = full row on every grid width (Elliot 484f1d0e: bench first and
+   full-bleed, panels in ONE scroll column below — never squeezed half-width
+   beside each other on desktop). */
+.span-2 { grid-column: 1 / -1; }
 
 /* ── widget chrome ─────────────────────────────────────── */
 .widget {
@@ -254,63 +257,54 @@ table.data tbody tr:last-child td { border-bottom: none; }
 /* Ben's dashboard, framed full-bleed inside the sheet */
 .ben-embed iframe {
   width: 100%;
-  height: min(62vh, 560px);
+  /* Bench IS the Fleet tab (Elliot 484f1d0e): size to the content area, no
+     scrollbar-in-scrollbar. Everything else scrolls below. */
+  height: calc(100dvh - 250px);
+  min-height: 300px;
   border: 0;
   border-radius: var(--radius-sm);
   background: #07090c;
 }
 .ben-embed-caption { margin: 6px 0 0; }
-.ben-embed-foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.ben-expand {
-  margin-top: 6px;
-  padding: 6px 12px;
-  font-size: 0.75rem;
+
+/* ── widget full screen (card chrome owns it — Elliot 2026-08-20) ── */
+.frame-expand {
+  margin-left: 8px;
+  min-width: 40px;
+  min-height: 30px;
+  font-size: 0.85rem;
   color: var(--muted);
   background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
-
-/* ── Ben's bench, full screen (Elliot, live at the fleet 2026-08-20) ── */
-.ben-full {
+.widget.widget-full {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: #07090c;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
+  overflow-y: auto;
+  padding: calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom));
 }
-.ben-full-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-}
-.ben-full-caption { flex: 1; margin: 0; }
-.ben-full-close {
-  min-width: 44px;
-  min-height: 36px;
-  font-size: 1rem;
-  color: var(--muted);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-.ben-full iframe {
+.widget-full .widget-body {
   flex: 1;
-  width: 100%;
-  border: 0;
-  background: #07090c;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.widget-full .ben-embed {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.widget-full .ben-embed iframe {
+  flex: 1;
+  height: auto;
+  min-height: 0;
 }
 
 .live-chip {
@@ -440,11 +434,20 @@ table.data tbody tr:last-child td { border-bottom: none; }
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  /* One row, always (Elliot 484f1d0e ③): title + chips share it; chips
+     shrink with ellipsis instead of wrapping into a second row. */
+  padding: 6px 12px;
   pointer-events: none;
 }
-.app-head h1 { pointer-events: auto; }
+.app-head h1 { pointer-events: auto; font-size: 1rem; white-space: nowrap; }
+.app-head .source-chip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .app-head .source { pointer-events: auto; }
 
 .sheet {

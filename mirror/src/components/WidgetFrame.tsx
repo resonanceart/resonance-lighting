@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { WidgetInstance } from '../lib/types'
 import { getWidgetDef } from '../lib/registry'
@@ -28,6 +28,17 @@ export function WidgetFrame({
   // confirmation persists into the layout doc via config._confirmed.
   const confirmed = typeof widget.config._confirmed === 'string'
   const [arming, setArming] = useState(false)
+  // Full screen is card chrome (Elliot 484f1d0e: the control lives in the
+  // header row next to the LIVE chip — footer placement was invisible).
+  const [expanded, setExpanded] = useState(false)
+  useEffect(() => {
+    if (!expanded) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [expanded])
   const def = getWidgetDef(widget.type)
   if (!def) {
     return (
@@ -38,7 +49,10 @@ export function WidgetFrame({
   }
 
   return (
-    <section className={`widget span-${widget.span}`} aria-label={widget.label ?? def.title}>
+    <section
+      className={`widget span-${widget.span}${expanded ? ' widget-full' : ''}`}
+      aria-label={widget.label ?? def.title}
+    >
       <header className="widget-head">
         <h3>
           <span aria-hidden>{def.icon}</span> {widget.label ?? def.title}
@@ -66,6 +80,15 @@ export function WidgetFrame({
               </button>
             ))}
           {confirmed && live && <span className="live-chip">LIVE</span>}
+          {def.expandable && (
+            <button
+              className="frame-expand"
+              aria-label={expanded ? 'Exit full screen (Esc)' : 'Full screen'}
+              onClick={() => setExpanded((e) => !e)}
+            >
+              {expanded ? '✕' : '⛶'}
+            </button>
+          )}
         </h3>
         {editMode && (
           <div className="widget-tools">

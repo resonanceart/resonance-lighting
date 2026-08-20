@@ -32,6 +32,9 @@ export interface WidgetDef {
   defaults: { span: 1 | 2; config: Record<string, unknown> }
   configFields: ConfigField[]
   component: ComponentType<WidgetDataProps>
+  /** Card chrome offers a ⛶ full-screen toggle in the header (WidgetFrame
+   *  owns the overlay — the widget body just fills it). */
+  expandable?: boolean
 }
 
 const ALLOWED_TIERS: Tier[] = ['READ', 'BLINK']
@@ -107,6 +110,7 @@ const DEFS: WidgetDef[] = [
     defaults: { span: 2, config: {} },
     configFields: [],
     component: BenDashboard,
+    expandable: true,
   },
   {
     type: 'bridge-os',
