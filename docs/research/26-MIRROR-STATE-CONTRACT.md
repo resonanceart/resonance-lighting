@@ -49,8 +49,10 @@ polling for the Mirror store.
 
 **master row:** `id, channel:int (11), frames, send_ok, send_fail:int, uptime_ms:int,
 battery_v:float, firmware_rev:str, ts_utc`. `firmware_rev` may arrive from the boot banner
-instead of the master line. Bench bridge today: `E39A34` on `cores3-bridge-2026-08-15.1`
-(⚠ its fw predates the dark-lease grammar — that dashboard button is inert here).
+instead of the master line. Bench bridge today: `E39A34` on **`cores3-bridge-2026-08-17.2`**
+(reflashed 2026-08-20 ~04:00Z from Ben's main @ 049cc10, Elliot-directed, per the
+WORKSITE_WAKE_ALIGNMENT handoff's ≥08-17 requirement; first live `T` round-trip verified
+same session — fixture 9F2720 reported RGB 0,128,0).
 **Current bridge OS on `main` = `cores3-bridge-2026-08-17.2`** (T tags · B dark-lease ·
 Q transport sleep · L RSSI survey · F0/F1 profile flip). **Capability gates, source-pinned:**
 `tagCapable`/`darkCapable` ⇐ `master.firmware_rev >= cores3-bridge-2026-08-17.1`;
