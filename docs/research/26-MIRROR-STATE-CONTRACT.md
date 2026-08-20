@@ -1,10 +1,12 @@
 # 26 — MIRROR ↔ BENCH STATE CONTRACT (pinned)
 
 > **For:** network-tester (Mirror app agent) — answer to their ask #1 (08-17, handoff b3d379ca).
-> **Pinned to:** Ben's `ops/bench/net_bench_dashboard.py` @ upstream `codex/deep-recovery-canary`
-> **`1f1edfd`**. If Ben's dashboard moves, this contract is STALE until re-pinned: re-read
-> `handle_line`/`snapshot`, bump the SHA here, re-run the checker. Field truth below is read from
-> that source, then verified against the LIVE :8765 feed by `tools/mirror-contract-check.py`.
+> **Pinned to:** Ben's `ops/bench/net_bench_dashboard.py` @ upstream **`main` `049cc10`**
+> (re-pinned 2026-08-20 from `1f1edfd`; delta = `e09f46f` time anchors · `29ebe2b` transport
+> sleep + L survey · `df0ae22` ADR 0046 ladder — one NEW peer field, `firmware_rev_age_ms`, §2).
+> If Ben's dashboard moves, this contract is STALE until re-pinned: re-read `handle_line`/
+> `snapshot`, bump the SHA here, re-run the checker. Field truth below is read from that source,
+> then verified against the LIVE :8765 feed by `tools/mirror-contract-check.py`.
 > Maintained by lighting-architect.
 
 ---
@@ -49,6 +51,10 @@ polling for the Mirror store.
 battery_v:float, firmware_rev:str, ts_utc`. `firmware_rev` may arrive from the boot banner
 instead of the master line. Bench bridge today: `E39A34` on `cores3-bridge-2026-08-15.1`
 (⚠ its fw predates the dark-lease grammar — that dashboard button is inert here).
+**Current bridge OS on `main` = `cores3-bridge-2026-08-17.2`** (T tags · B dark-lease ·
+Q transport sleep · L RSSI survey · F0/F1 profile flip). Until E39A34 is reflashed to it,
+gate every such widget on `master.firmware_rev >= 2026-08-17.1` — the old fw swallows
+unknown opcodes SILENTLY (dashboard still reports "sent").
 
 ## 2 · peer row — core block (always present; null = not reported)
 
@@ -88,6 +94,12 @@ led_lit_pixels, sensor_bits, class_mismatch, recovery_state, recovery_detect_mv`
 heartbeats omit this tail, and the dashboard **carries the last rich values forward** so the glyph
 doesn't flicker to unknown. Consequence for Mirror: these nine fields can be OLDER than the row's
 `ts_utc`. Treat them as "last known", not "current".
+
+**NEW @ 049cc10 — `firmware_rev_age_ms:int|null`:** ms since the dashboard last saw a heartbeat
+that actually CARRIED `firmware_rev` (dashboard-side monotonic clock, `snapshot()` computes it;
+carry-forward keeps the ORIGINAL seen-time, so a stale identity honestly ages). `null` = fw never
+seen this dashboard run. This is the instrument for "how stale is this fw claim" — use it instead
+of guessing from `age_ms`; `firmware_rev` itself is carried forward exactly like the render tail.
 
 ## 3 · peer row — conditional blocks (each all-or-none)
 

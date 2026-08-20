@@ -39,6 +39,7 @@ CORE = {
     "config_capacity_mah": (int, True), "config_charge_ma": (int, True),
     "drawdown_mah": (NUM, True), "drawdown_budget_mah": (int, True),
     "drawdown_active": (bool, True), "firmware_rev": (str, True),
+    "firmware_rev_age_ms": (int, True),  # NEW @ 049cc10 — ms since fw identity last CARRIED in a hb
     "maint_status": (int, True), "field_phase": (int, True), "field_reason": (int, True),
     "field_cycle": (int, True), "field_elapsed_s": (int, True),
     "field_charge_mah": (int, True), "field_discharge_mah": (int, True),
