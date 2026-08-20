@@ -51,6 +51,26 @@ maxes ~18.2 h — not used), so all 7 left awake on solar. Recorded for Ben.
 - Cohort wakes **dark** (latch set) with the fleet; nothing light-pushing sent
   after the sleep (no `b`, no tags, no `L` survey).
 
+## Addendum 23:57 PDT — overnight dark-lease stewardship (Elliot, with Ben's permission)
+
+Elliot wanted the 7 awake old-fw units at low-red to save battery. Not possible:
+the bridge grammar has no color/value command (C1 ask, still open for Ben) and
+`i` sends color 0 (renders nothing). Nearest sanctioned power-save = `B` dark
+lease. Empirical probe `B60` at 23:52: **4/5 lit units honor the lease**
+(9E5AE0 9F0E54 F40424 F4042C went dark, relit on expiry — clean round trip).
+
+- `B25200` (7 h, expires ~06:55 into morning sun) sent 23:54:35; re-sent
+  23:55:20 to catch broadcast stragglers → 4/5 dark and staying dark.
+- **9E5AD4 ignored 3 broadcasts its same-image siblings obeyed → downlink
+  presumed deaf; left lit for Ben.** It is also the weakest (3.074 V, −313 mA,
+  21% SoC) — its own ladder will dim/park it. `dl_pdr` reads 0.0 on ALL these
+  images, so that field does not discriminate; the evidence is behavioral.
+- Dark units still draw ~130–160 mA awake-radio (no transport sleep on old
+  fw) — lease saves the LED portion only; ladders + morning solar do the rest.
+- Lease is RAM-only (reboot → relight): watchdog armed on the Mac re-sending
+  `B<remaining>` if any of the 4 relights, hard stop 06:55
+  (scratchpad/lease_watchdog.py, dark-direction commands only).
+
 ## Report for Ben
 
 > Wake alignment done 8/19. Q47 sent 23:43:06 PDT, all six cohort units
