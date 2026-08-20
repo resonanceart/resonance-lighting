@@ -35,6 +35,12 @@ export function BatteryGauge({ config, telemetry }: WidgetDataProps) {
   )
   return (
     <div className="scroll-x">
+      {/* Same ear-down caveat the census carries — an empty/stale table with
+          no words reads as broken, not honest (feed-down audit 2026-08-20). */}
+      {!telemetry.serialConnected && (
+        <p className="warn-text">⚠ bridge ear down — last-seen data, nothing here is live</p>
+      )}
+      {telemetry.fixtures.length === 0 && <p>no fixture rows in this feed</p>}
       <table className="data">
         <thead>
           <tr>

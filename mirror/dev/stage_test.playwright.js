@@ -40,6 +40,17 @@ async (page) => {
     // 1 · feed + census shape
     const chip = await p.evaluate(() => document.querySelector('.source-chip')?.textContent?.trim());
     check('feed chip present', chip && chip.length > 0, chip);
+
+    // 1a · replay honesty (157df36a): a feed that confesses replay MUST show
+    // the REPLAY chip, and a feed that doesn't must NOT — both directions,
+    // decided by the wire itself (a stub window was misread as live once).
+    const replayFeed = await p.evaluate(async () => {
+      try { const j = await (await fetch('/bench/api/state')).json(); return !!(j.replay && j.replay.stub === true); } catch { return null; }
+    });
+    if (replayFeed !== null) {
+      check('replay chip matches feed confession', replayFeed === /^REPLAY/.test(chip ?? ''), `feedReplay=${replayFeed} chip=${chip}`);
+    }
+
     const c0 = await census();
     const m = c0.match(/(\d+) heard · (\d+) not yet located · (\d+) self-located · (\d+) seated/);
     check('census parses', !!m, c0);

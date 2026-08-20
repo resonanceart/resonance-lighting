@@ -105,5 +105,26 @@ send({ verb: 'LOCATE', target: 'abc123', seconds: 0 })
 check('LOCATE seconds clamp low (1)', lastCmd(), 'iABC123:1')
 check('LOCATE never emits bare identify by accident', lastCmd().includes(':'), true)
 
+// ── adapter mapping pins (8d0b20ca power_tier · 157df36a replay) ────────
+// power_tier is telemetry-AUTHORITATIVE (LX 442d8786): absent must map to
+// null (renders '—'), NEVER 0/full. replay: the confession must survive the
+// adapter — a stub-fed window was misread as live once (2026-08-20).
+const { mapState } = await import('../src/lib/adapter')
+const mkPeer = (extra: Record<string, unknown>) => ({
+  peers: { ABC123: { battery_v: 3.2, age_ms: 100, ...extra } },
+  serial: { connected: true },
+  master: {},
+})
+check('power_tier 3 maps through', mapState(mkPeer({ power_tier: 3 })).fixtures[0].powerTier, 3)
+check('power_tier 0 maps through (0 ≠ null)', mapState(mkPeer({ power_tier: 0 })).fixtures[0].powerTier, 0)
+check('power_tier absent → null, never 0', mapState(mkPeer({})).fixtures[0].powerTier, null)
+check(
+  'replay confession maps through',
+  mapState({ ...mkPeer({}), replay: { stub: true, capture: 'cap.json', capture_ts_utc: '2026-08-17T23:20:33Z' } }).replay,
+  { capture: 'cap.json', captureTsUtc: '2026-08-17T23:20:33Z' },
+)
+check('no replay field → null (real dashboard)', mapState(mkPeer({})).replay, null)
+check('replay without stub:true → null', mapState({ ...mkPeer({}), replay: { capture: 'x' } }).replay, null)
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nfence + capability gates: ALL GREEN')
 process.exit(failures ? 1 : 0)
