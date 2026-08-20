@@ -13,6 +13,21 @@ function socClass(soc: number): string {
   return 'ok-text'
 }
 
+/** LedTier labels verbatim from Ben's dashboard (net_bench_dashboard.py:964);
+ *  tier is telemetry-AUTHORITATIVE (LX ruling 442d8786) — never derived here.
+ *  Emphasis mirrors the dashboard's critical rule (:1095): tier ≥2 = the
+ *  power veto is suppressing the show. null = not reported → '—'. */
+const TIER_LABEL: Record<number, string> = { 0: 'full', 1: 'dim', 2: 'LEDs off', 3: 'protect' }
+const TIER_TITLE =
+  'power_tier from fixture telemetry (LedTier). ADR 0046 ladder (post-0046): dim 3.15 V · LEDs-off 3.10 V · protect 3.05 V, load-compensated'
+
+function tierClass(tier: number | null): string {
+  if (tier === null) return ''
+  if (tier >= 2) return 'danger-text'
+  if (tier === 1) return 'warn-text'
+  return 'ok-text'
+}
+
 export function BatteryGauge({ config, telemetry }: WidgetDataProps) {
   const sort = String(config.sort ?? 'soc')
   const rows = [...telemetry.fixtures].sort((a, b) =>
@@ -27,6 +42,7 @@ export function BatteryGauge({ config, telemetry }: WidgetDataProps) {
             <th>mV</th>
             <th>mA</th>
             <th>SoC</th>
+            <th title={TIER_TITLE}>tier</th>
             <th></th>
           </tr>
         </thead>
@@ -37,6 +53,9 @@ export function BatteryGauge({ config, telemetry }: WidgetDataProps) {
               <td className="mono">{f.battMv}</td>
               <td className="mono">{f.battMa < 0 ? <span className="ok-text">{f.battMa} ⚡</span> : f.battMa}</td>
               <td className={socClass(f.soc)}>{socText(f.soc)}</td>
+              <td className={tierClass(f.powerTier)} title={TIER_TITLE}>
+                {f.powerTier === null ? '—' : (TIER_LABEL[f.powerTier] ?? `tier ${f.powerTier}`)}
+              </td>
               <td className="gauge-cell">
                 {f.soc !== 255 && (
                   <div className="gauge">

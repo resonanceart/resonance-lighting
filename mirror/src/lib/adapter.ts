@@ -65,6 +65,7 @@ function mapPeer(id: string, row: PeerRow, now: number): FixtureState {
     ledG: num(row.led_g) ?? null,
     ledB: num(row.led_b) ?? null,
     lifeState: str(row.field_phase) ?? null,
+    powerTier: num(row.power_tier) ?? null,
   }
 }
 
@@ -83,6 +84,12 @@ export function mapState(json: unknown): Telemetry {
     serialConnected: serial.connected === true,
     serialError: str(serial.error) ?? null,
     bridgeFwRev: str(master.firmware_rev) ?? null,
+    replay: (() => {
+      const r = root.replay as Record<string, unknown> | undefined
+      return r && r.stub === true
+        ? { capture: str(r.capture) ?? 'unknown capture', captureTsUtc: str(r.capture_ts_utc) ?? null }
+        : null
+    })(),
     fixtures: Object.entries(peers).map(([id, row]) => mapPeer(id, row, now)),
   }
 }

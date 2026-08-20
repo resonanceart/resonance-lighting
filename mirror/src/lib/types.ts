@@ -90,6 +90,11 @@ export interface FixtureState {
   ledB: number | null
   /** null on a running fixture; real value only when dormant. null ≠ 0. */
   lifeState: string | null
+  /** LedTier from telemetry (lifecycle.cpp:112: 0 full · 1 dim · 2 LEDs off ·
+   *  3 protect — "the power veto over art"). AUTHORITATIVE power state per
+   *  LX ruling 442d8786 — never derive tiers client-side from battery_v.
+   *  null = not reported (short heartbeat) — renders '—', never 0/full. */
+  powerTier: number | null
   usb?: { state: 'CONNECTED' | 'PASS' | 'FAIL' | 'UNPLUGGED'; port: string; holdRemainingS?: number }
   /** Pairwise neighbor RSSI — the NB_NEIGHBOR_REPORT shape (censored-median,
    *  ≤8 neighbors). Mock fills it; the live wire leaves it undefined until Ben
@@ -110,6 +115,11 @@ export interface Telemetry {
    *  first master line). Gates verb capability: 08-15.1 bridges swallow
    *  T/B char-by-char as unknown opcodes — the silent-no-op class. */
   bridgeFwRev: string | null
+  /** Non-null when the feed CONFESSES it is a replay (bench_stub.py stamps
+   *  `replay` into every snapshot). The header must render a loud REPLAY chip —
+   *  a stub-fed window was briefly misread as live telemetry (2026-08-20).
+   *  The real dashboard never sends this field. */
+  replay: { capture: string; captureTsUtc: string | null } | null
   fixtures: FixtureState[]
 }
 
