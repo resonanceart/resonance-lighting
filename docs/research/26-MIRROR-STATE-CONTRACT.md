@@ -52,9 +52,13 @@ battery_v:float, firmware_rev:str, ts_utc`. `firmware_rev` may arrive from the b
 instead of the master line. Bench bridge today: `E39A34` on `cores3-bridge-2026-08-15.1`
 (⚠ its fw predates the dark-lease grammar — that dashboard button is inert here).
 **Current bridge OS on `main` = `cores3-bridge-2026-08-17.2`** (T tags · B dark-lease ·
-Q transport sleep · L RSSI survey · F0/F1 profile flip). Until E39A34 is reflashed to it,
-gate every such widget on `master.firmware_rev >= 2026-08-17.1` — the old fw swallows
-unknown opcodes SILENTLY (dashboard still reports "sent").
+Q transport sleep · L RSSI survey · F0/F1 profile flip). **Capability gates, source-pinned:**
+`tagCapable`/`darkCapable` ⇐ `master.firmware_rev >= cores3-bridge-2026-08-17.1`;
+`surveyCapable`(L)/`sleepAware`(Q) ⇐ `>= cores3-bridge-2026-08-17.2` (L/Q cases land in
+`29ebe2b`, which bumps .1→.2). HTTP `/api/cmd` allowlist @ 049cc10, executed not read:
+ACCEPTS `T<id>:0|1 · i<id>[:1-255] · L0-900 · B1-65535 · b · Q1-168`; REJECTS all `F` forms
+(profile flip is serial-only by design). Old fw swallows unknown opcodes SILENTLY (dashboard
+still reports "sent") — never trust a send without its capability gate.
 
 ## 2 · peer row — core block (always present; null = not reported)
 
