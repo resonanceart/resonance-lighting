@@ -260,6 +260,58 @@ table.data tbody tr:last-child td { border-bottom: none; }
   background: #07090c;
 }
 .ben-embed-caption { margin: 6px 0 0; }
+.ben-embed-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ben-expand {
+  margin-top: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* ── Ben's bench, full screen (Elliot, live at the fleet 2026-08-20) ── */
+.ben-full {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #07090c;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+.ben-full-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+.ben-full-caption { flex: 1; margin: 0; }
+.ben-full-close {
+  min-width: 44px;
+  min-height: 36px;
+  font-size: 1rem;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ben-full iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #07090c;
+}
 
 .live-chip {
   margin-left: 6px;
