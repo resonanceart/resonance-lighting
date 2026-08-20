@@ -59,6 +59,7 @@ function mapPeer(id: string, row: PeerRow, now: number): FixtureState {
     // (one consistent window — divergent counts would be a lie of divergence).
     rowAgeMs: rowTs ? Math.max(0, now - Date.parse(rowTs)) : undefined,
     fwRev: str(row.firmware_rev) ?? '—',
+    fwRevAgeMs: num(row.firmware_rev_age_ms) ?? null,
     activeProgram: str(row.active_program) ?? str(row.ca_state) ?? str(row.peer_mode) ?? '—',
     ledR: num(row.led_r) ?? null,
     ledG: num(row.led_g) ?? null,

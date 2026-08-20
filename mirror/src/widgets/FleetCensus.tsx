@@ -7,6 +7,15 @@ function lastHeard(ms: number): string {
   return `${Math.round(ms / 60_000)}m ⚠`
 }
 
+/** fw-identity age (contract §2 @ 02d4d1c0): how stale the fw CLAIM is —
+ *  firmware_rev is carried forward like the render tail, so the rev string
+ *  alone can lie about being current. null = never seen, honest UNKNOWN. */
+function fwClaimAge(ms: number | null): string {
+  if (ms === null) return 'id: unknown'
+  if (ms < 60_000) return `id ${Math.round(ms / 1000)}s`
+  return `id ${Math.round(ms / 60_000)}m ⚠`
+}
+
 /** Census honesty: the count line always cites the listen window, and an
  *  ear-down feed is called out — never rendered as if it were live. */
 export function FleetCensus({ config, telemetry }: WidgetDataProps) {
@@ -38,7 +47,9 @@ export function FleetCensus({ config, telemetry }: WidgetDataProps) {
                 <td className="mono">{f.fixtureId}</td>
                 <td>{liveness(telemetry, f) === 'ghost' ? 'ghost' : lastHeard(f.lastHeardMs)}</td>
                 <td>{f.cls}</td>
-                <td className="mono small">{f.fwRev}</td>
+                <td className="mono small">
+                  {f.fwRev} <span className="muted">· {fwClaimAge(f.fwRevAgeMs)}</span>
+                </td>
                 <td>{f.lifeState === null ? f.activeProgram : <span className="muted">{f.lifeState}</span>}</td>
               </tr>
             ))}

@@ -76,6 +76,11 @@ export interface FixtureState {
    *  Undefined when the row carries no ts_utc. */
   rowAgeMs?: number
   fwRev: string
+  /** Contract §2 @ 02d4d1c0: ms since the dashboard last saw a heartbeat that
+   *  actually CARRIED firmware_rev (dashboard-side clock; carry-forward keeps
+   *  the original seen-time, so a stale fw claim honestly ages). null = fw
+   *  never seen this dashboard run — renders UNKNOWN, never 0. */
+  fwRevAgeMs: number | null
   activeProgram: string
   /** Render tail led_r/g/b (carry-forward: can be OLDER than ts_utc — "last
    *  known", contract §2). Null = not reported. The Mirror shows tag state
