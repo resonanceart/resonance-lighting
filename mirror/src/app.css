@@ -129,6 +129,14 @@
 .chip-danger { background: var(--danger-dim); color: var(--danger); }
 .chip-muted { background: var(--surface); color: var(--muted); border: 1px dashed var(--muted); }
 
+/* ── capability chips (Bridge OS banner) ───────────────── */
+.cap-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
 /* ── hold countdown (Flash Station) ────────────────────── */
 .hold-list { display: grid; gap: 8px; }
 .hold-row {

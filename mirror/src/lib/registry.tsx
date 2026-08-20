@@ -7,6 +7,7 @@ import { BatteryGauge } from '../widgets/BatteryGauge'
 import { ProgramTruth } from '../widgets/ProgramTruth'
 import { FlashStation } from '../widgets/FlashStation'
 import { BenDashboard } from '../widgets/BenDashboard'
+import { BridgeOs } from '../widgets/BridgeOs'
 
 /**
  * The widget registry — the Mirror's block registry.
@@ -106,6 +107,17 @@ const DEFS: WidgetDef[] = [
     defaults: { span: 2, config: {} },
     configFields: [],
     component: BenDashboard,
+  },
+  {
+    type: 'bridge-os',
+    title: 'Bridge OS',
+    icon: '🌉',
+    tier: 'READ',
+    description:
+      "The bridge's firmware identity + which command verbs it is known to forward. Chips flip capable on reflash with zero code changes; unknown fw fails closed.",
+    defaults: { span: 2, config: {} },
+    configFields: [],
+    component: BridgeOs,
   },
   {
     type: 'flash-station',

@@ -80,6 +80,9 @@ function fleetPage(): PageDef {
     widgets: [
       // Elliot (2026-08-18, twice): Ben's dashboard IS the fleet tab's face.
       w('ben-dashboard', 2),
+      // LX spec M1 (Elliot directive 2026-08-20): the bridge-OS banner rides
+      // directly under Ben's page so capability truth is never off-screen.
+      w('bridge-os', 2),
       w('stat-tile', 1, { metric: 'alive' }),
       w('stat-tile', 1, { metric: 'stale' }),
       w('fleet-census', 2, { cls: 'all' }),
@@ -132,6 +135,12 @@ function load(): LayoutDoc {
         const fleet = doc.pages.find((p) => p.id === 'fleet')
         if (fleet && !fleet.widgets.some((w) => w.type === 'ben-dashboard')) {
           fleet.widgets.unshift({ id: uid('w'), type: 'ben-dashboard', span: 2, visible: true, config: {} })
+        }
+        // Heal pre-banner layouts: bridge-OS capability truth rides just
+        // under Ben's page (M1, Elliot 2026-08-20).
+        if (fleet && !fleet.widgets.some((w) => w.type === 'bridge-os')) {
+          const at = fleet.widgets.findIndex((w) => w.type === 'ben-dashboard') + 1
+          fleet.widgets.splice(at, 0, { id: uid('w'), type: 'bridge-os', span: 2, visible: true, config: {} })
         }
         return doc
       }

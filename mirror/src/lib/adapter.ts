@@ -109,10 +109,12 @@ export function isHeard(t: Telemetry, f: FixtureState): boolean {
  *  older bridges swallow unknown opcodes char-by-char while the dashboard
  *  still prints Sent. FAIL CLOSED: null/unparseable fw (the reconnect
  *  boot-banner window) counts as incapable until the bridge introduces
- *  itself. Two capabilities, two thresholds (LX): T tags land in 08-16.1;
- *  B dark-lease lands one version later in 08-17.1. Date compares are safe
- *  lexicographically (ISO); the trailing .N is parsed numerically — '.10'
- *  must not sort before '.2'. */
+ *  itself. Thresholds are CONTRACT-PINNED, not lore — §1 @ bc815a2a (LX):
+ *  T tag / B dark / i locate land in 08-17.1 (locate grouping = BLD pin
+ *  1ff51603, LX veto window open); L survey / Q sleep land in Ben's 29ebe2b,
+ *  the commit that bumps .1→.2. Date compares are safe lexicographically
+ *  (ISO); the trailing .N is parsed numerically — '.10' must not sort
+ *  before '.2'. */
 function fwAtLeast(fw: string | null, date: string, minor: number): boolean {
   const m = fw?.match(/(\d{4}-\d{2}-\d{2})\.(\d+)$/)
   if (!m) return false
@@ -120,11 +122,23 @@ function fwAtLeast(fw: string | null, date: string, minor: number): boolean {
 }
 
 export function tagCapable(fw: string | null): boolean {
-  return fwAtLeast(fw, '2026-08-16', 1)
+  return fwAtLeast(fw, '2026-08-17', 1)
 }
 
 export function darkCapable(fw: string | null): boolean {
   return fwAtLeast(fw, '2026-08-17', 1)
+}
+
+export function locateCapable(fw: string | null): boolean {
+  return fwAtLeast(fw, '2026-08-17', 1)
+}
+
+export function surveyCapable(fw: string | null): boolean {
+  return fwAtLeast(fw, '2026-08-17', 2)
+}
+
+export function sleepAware(fw: string | null): boolean {
+  return fwAtLeast(fw, '2026-08-17', 2)
 }
 
 export type FeedStatus = 'connecting' | 'live' | 'error'
