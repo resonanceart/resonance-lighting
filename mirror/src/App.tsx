@@ -6,7 +6,7 @@ import { EditPanel } from './components/EditPanel'
 import { Scene3D } from './components/Scene3D'
 import { getWidgetDef } from './lib/registry'
 import { useMirror, TREE_TAB } from './lib/store'
-import { connectDashboard, tagCapable, type FeedStatus } from './lib/adapter'
+import { connectDashboard, tagCapable, locateCapable, type FeedStatus } from './lib/adapter'
 import type { Telemetry } from './lib/types'
 
 /**
@@ -37,12 +37,18 @@ function useTelemetry(): { telemetry: Telemetry; status: FeedStatus } {
           // Verb-capability truth for the store fence + BLD's button disables.
           if (useMirror.getState().bridgeFw !== t.bridgeFwRev) {
             const capable = tagCapable(t.bridgeFwRev)
+            const canLocate = locateCapable(t.bridgeFwRev)
             useMirror.setState({
               bridgeFw: t.bridgeFwRev,
               tagCapable: capable,
+              // Threshold text tracks contract bc815a2a (tag moved 16.1 → 17.1).
               tagRefusalReason: capable
                 ? null
-                : `bridge fw ${t.bridgeFwRev ?? 'unknown'} — tags need >= cores3-bridge-2026-08-16.1, reflash pending Elliot`,
+                : `bridge fw ${t.bridgeFwRev ?? 'unknown'} — tags need >= cores3-bridge-2026-08-17.1, reflash pending Elliot`,
+              locateCapable: canLocate,
+              locateRefusalReason: canLocate
+                ? null
+                : `bridge fw ${t.bridgeFwRev ?? 'unknown'} — exact-locate needs >= cores3-bridge-2026-08-17.1, reflash pending Elliot`,
             })
           }
         },

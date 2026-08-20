@@ -149,6 +149,9 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   // reason in hand instead of letting a tap hit the refusal.
   const tagCapable = useMirror((s) => s.tagCapable)
   const tagRefusalReason = useMirror((s) => s.tagRefusalReason)
+  const locateCapable = useMirror((s) => s.locateCapable)
+  const locateRefusalReason = useMirror((s) => s.locateRefusalReason)
+  const send = useMirror((s) => s.send)
 
   const [nodes, setNodes] = useState<SolvedNode[]>([])
   const [plSlots, setPlSlots] = useState<SeatDef[]>([])
@@ -157,6 +160,45 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
   const [selected, setSelected] = useState<string | null>(null)
   const [slotSel, setSlotSel] = useState<string | null>(null)
   const [seatPick, setSeatPick] = useState<string>('')
+  // LOCATE·β per-click confirm (spec M3): first tap ARMS (shows 5s/15s/60s),
+  // the duration tap FIRES. No native confirm() — inline two-tap, 4s
+  // auto-disarm so a stray arm can't fire minutes later.
+  const [locateArm, setLocateArm] = useState<string | null>(null)
+  useEffect(() => {
+    if (!locateArm) return
+    const t = setTimeout(() => setLocateArm(null), 4000)
+    return () => clearTimeout(t)
+  }, [locateArm])
+  const fireLocate = (mac: string, seconds: number) => {
+    send({ verb: 'LOCATE', target: mac, seconds })
+    setLocateArm(null)
+  }
+  // One Locate·β control, rendered at all three card sites. Plain render
+  // helper (not a component) so the arm state stays in this scope.
+  const locateControl = (mac: string) =>
+    locateArm === mac ? (
+      <span className="row-gap" data-locate-arm={mac}>
+        {[5, 15, 60].map((s) => (
+          <button key={s} className="btn-line" onClick={() => fireLocate(mac, s)}>
+            {s}s
+          </button>
+        ))}
+        <button className="btn-line" onClick={() => setLocateArm(null)}>✕</button>
+      </span>
+    ) : (
+      <button
+        className="btn-line"
+        onClick={() => setLocateArm(mac)}
+        disabled={!locateCapable}
+        title={
+          locateCapable
+            ? 'BETA · exact-locate: arm, then pick how many seconds this light blinks visibly'
+            : (locateRefusalReason ?? 'bridge cannot locate yet')
+        }
+      >
+        Locate·β
+      </button>
+    )
   const controls = useRef<OrbitControlsImpl>(null)
   const pointerDownAt = useRef<{ x: number; y: number } | null>(null)
   const latest = useRef(telemetry)
@@ -448,6 +490,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                     {activeTags[slotMac] ? 'Untag' : 'Tag'}
                   </button>
                 )}
+                {heardIds.has(slotMac) && locateControl(slotMac)}
                 <button className="btn-line danger-text" onClick={() => { unpinSeat(slotMac); setSlotSel(null) }}>
                   Unseat
                 </button>
@@ -478,6 +521,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                 >
                   {seatPick && activeTags[seatPick] ? 'Untag' : 'Tag'}
                 </button>
+                {seatPick && locateControl(seatPick)}
                 <button className="btn-accent" onClick={seatIt} disabled={!seatPick}>
                   Seat
                 </button>
@@ -516,6 +560,7 @@ export function Scene3D({ telemetry }: { telemetry: Telemetry }) {
                 {activeTags[selected] ? 'Untag' : 'Tag'}
               </button>
             )}
+            {heardIds.has(selected) && locateControl(selected)}
             {(selSeat || selNode?.pinned) && (
               <button
                 className="btn-line"

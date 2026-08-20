@@ -97,6 +97,28 @@ async (page) => {
           check('tag refused honestly (disabled + reason, zero emissions)',
             cmdPosts.length === 0 && !!reason && reason.length > 5, `reason=${reason} posts=${JSON.stringify(cmdPosts)}`);
         }
+        // 4b · Locate·β (M3) — same capability-aware split. Capable: two-tap
+        // arm→'5s' must emit i<MAC>:5 (intercepted). Incapable: disabled with
+        // the refusal reason, zero i…:… emissions ever.
+        const locBtn = await (async () => { for (const b of await p.$$('.light-card button')) if ((await b.innerText()) === 'Locate·β') return b; return null; })();
+        const locDisabled = locBtn ? await locBtn.isDisabled() : true;
+        const locPosts = () => cmdPosts.filter((c) => /^i[0-9A-F]{6}:\d+$/.test(c.cmd ?? ''));
+        if (!locDisabled) {
+          await locBtn.click(); // arm
+          await p.waitForTimeout(300);
+          const fiveBtn = await (async () => { for (const b of await p.$$('.light-card button')) if ((await b.innerText()) === '5s') return b; return null; })();
+          check('locate arm shows duration picks', !!fiveBtn, 'no 5s button after arming');
+          if (fiveBtn) {
+            await fiveBtn.click();
+            await p.waitForTimeout(400);
+            check('locate emits i<MAC>:5', cmdPosts.some((c) => c.cmd === 'i' + seatedMac.toUpperCase() + ':5'), JSON.stringify(cmdPosts));
+          }
+        } else {
+          const locReason = locBtn ? await locBtn.getAttribute('title') : null;
+          check('locate refused honestly (disabled + reason, zero i:sec emissions)',
+            locPosts().length === 0 && !!locReason && locReason.length > 5,
+            `reason=${locReason} posts=${JSON.stringify(locPosts())}`);
+        }
         await p.click('.light-card .btn-accent');
         await p.waitForTimeout(600);
         const c1 = await census();

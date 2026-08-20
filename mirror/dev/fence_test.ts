@@ -89,5 +89,21 @@ send({ verb: 'NB_IDENTIFY', target: 'abc123' })
 check('identify emits exactly once', posts.length, 1)
 check('identify wire shape', (JSON.parse(posts[0].body) as { cmd: string }).cmd, 'iABC123')
 
+// ── LOCATE (M3, BLD): capability gate + wire shape + clamps ─────────────
+const lastCmd = () => (JSON.parse(posts[posts.length - 1].body) as { cmd: string }).cmd
+// boot state: locateCapable=false → refused, audited, no wire
+send({ verb: 'LOCATE', target: 'abc123', seconds: 5 })
+check('LOCATE pre-capability: zero new posts', posts.length, 1)
+check('LOCATE refusal audited in commandLog', useMirror.getState().commandLog[0]?.refused, true)
+// capable → exact wire, uppercased, seconds clamped to the contract's 1-255
+useMirror.setState({ locateCapable: true, locateRefusalReason: null })
+send({ verb: 'LOCATE', target: 'abc123', seconds: 5 })
+check('LOCATE wire shape', lastCmd(), 'iABC123:5')
+send({ verb: 'LOCATE', target: 'abc123', seconds: 9999 })
+check('LOCATE seconds clamp high (255)', lastCmd(), 'iABC123:255')
+send({ verb: 'LOCATE', target: 'abc123', seconds: 0 })
+check('LOCATE seconds clamp low (1)', lastCmd(), 'iABC123:1')
+check('LOCATE never emits bare identify by accident', lastCmd().includes(':'), true)
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nfence + capability gates: ALL GREEN')
 process.exit(failures ? 1 : 0)

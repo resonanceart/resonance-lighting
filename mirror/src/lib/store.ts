@@ -167,6 +167,10 @@ interface MirrorStore {
    *  Tag controls from these instead of letting a click hit the refusal. */
   tagCapable: boolean
   tagRefusalReason: string | null
+  /** LOCATE (M3): i<id>:<seconds> needs bridge OS >= 08-17.1 — same
+   *  disabled-with-reason pattern as Tag. Set alongside bridgeFw by App. */
+  locateCapable: boolean
+  locateRefusalReason: string | null
   /** Tags this tab currently holds (id → lease-expiry ms). Renewal rides
    *  ensureTagRenewer; the WORLD's tag truth is the fixture's own led_g. */
   activeTags: Record<string, number>
@@ -217,6 +221,8 @@ export const useMirror = create<MirrorStore>((set, get) => ({
   bridgeFw: null,
   tagCapable: false,
   tagRefusalReason: 'bridge fw unknown — waiting for the feed',
+  locateCapable: false,
+  locateRefusalReason: 'bridge fw unknown — waiting for the feed',
 
   pinSeat: (id, x, y, slot) =>
     set((s) => {
@@ -334,13 +340,14 @@ export const useMirror = create<MirrorStore>((set, get) => ({
 
   /** THE COMMAND FENCE. Allowlist (design 28 @ 8b5fb0c, comms-owner
    *  sanctioned, Elliot-directed): NB_IDENTIFY ('i<MAC6>'/'I' — pixel-
-   *  INVISIBLE on today's fleet, kept for wire tests) and TAG ('T<id>:1|0'
-   *  — the VISIBLE green instrument, 255s RAM-only lease). Anything else
+   *  INVISIBLE on today's fleet, kept for wire tests), TAG ('T<id>:1|0'
+   *  — the VISIBLE green instrument, 255s RAM-only lease) and LOCATE
+   *  ('i<id>:<1-255s>' — M3 exact-locator, contract bc815a2a). Anything else
    *  throws. All sends ride the dashboard's own vetted POST /api/cmd,
    *  re-validated server-side — the dashboard stays the ONLY serial writer
    *  (rate discipline, memo 28). Fire-and-forget: UI never blocks on radio. */
   send: (cmd) => {
-    if (cmd.verb !== 'NB_IDENTIFY' && cmd.verb !== 'TAG') {
+    if (cmd.verb !== 'NB_IDENTIFY' && cmd.verb !== 'TAG' && cmd.verb !== 'LOCATE') {
       throw new Error(`Command fence: ${String((cmd as { verb: string }).verb)} is not in the allowlist`)
     }
     // Verb capability gate: an 08-15.1 bridge swallows T char-by-char while
@@ -351,12 +358,21 @@ export const useMirror = create<MirrorStore>((set, get) => ({
       set((s) => ({ commandLog: [{ at: Date.now(), cmd, refused: true }, ...s.commandLog].slice(0, 50) }))
       return
     }
+    // Same gate for LOCATE: the :seconds arg only exists on bridge OS
+    // >= 08-17.1 — an old bridge parses 'i<id>' and eats ':5' as noise.
+    if (cmd.verb === 'LOCATE' && !get().locateCapable) {
+      console.warn(`[mirror:fence] LOCATE refused — ${get().locateRefusalReason ?? 'bridge incapable'}`)
+      set((s) => ({ commandLog: [{ at: Date.now(), cmd, refused: true }, ...s.commandLog].slice(0, 50) }))
+      return
+    }
     const wire =
       cmd.verb === 'NB_IDENTIFY'
         ? cmd.target === 'all'
           ? 'I'
           : `i${cmd.target.toUpperCase()}`
-        : `T${cmd.target.toUpperCase()}:${cmd.on ? 1 : 0}`
+        : cmd.verb === 'LOCATE'
+          ? `i${cmd.target.toUpperCase()}:${Math.min(255, Math.max(1, Math.round(cmd.seconds)))}`
+          : `T${cmd.target.toUpperCase()}:${cmd.on ? 1 : 0}`
     console.info('[mirror:fence] emit', wire)
     set((s) => ({ commandLog: [{ at: Date.now(), cmd }, ...s.commandLog].slice(0, 50) }))
     fetch(`${get().dataSource.url.replace(/\/+$/, '')}/api/cmd`, {

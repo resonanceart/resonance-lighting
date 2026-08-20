@@ -124,7 +124,11 @@ export interface WidgetDataProps {
  *  NB_IDENTIFY — legacy 'i' blink; pixel-INVISIBLE on today's fleet (color=0
  *    default, fixture.ino:168) — kept for the wire-shape tests.
  *  TAG — the VISIBLE instrument: T<id>:1 = steady green 128, 255s renewable
- *    RAM-only lease; T<id>:0 clears. C0 of click-to-control. */
+ *    RAM-only lease; T<id>:0 clears. C0 of click-to-control.
+ *  LOCATE — exact-locator (M3, LX spec): i<id>:<1-255s> visible blink burst.
+ *    The :seconds form needs bridge OS >= 08-17.1 (locateCapable gate) —
+ *    older bridges swallow the arg char-by-char. BETA, per-click confirm. */
 export type MirrorCommand =
   | { verb: 'NB_IDENTIFY'; target: string | 'all' }
   | { verb: 'TAG'; target: string; on: boolean }
+  | { verb: 'LOCATE'; target: string; seconds: number }
