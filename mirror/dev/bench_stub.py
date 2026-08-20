@@ -61,6 +61,14 @@ def state() -> dict:
     t = time.time() - T0
     out = dict(BASE)
     out["ts_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    # Self-identify as a replay so the app can render a loud REPLAY chip.
+    # 2026-08-20: blender-architect briefly misread a stub-fed window as live
+    # telemetry — the wire itself must carry the confession, not a port number.
+    out["replay"] = {
+        "stub": True,
+        "capture": os.path.basename(CAPTURE_PATH),
+        "capture_ts_utc": BASE.get("ts_utc"),
+    }
     peers = {pid: dict(row) for pid, row in BASE.get("peers", {}).items()}
     if DROPPER:
         phase = t % 95.0

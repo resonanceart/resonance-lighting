@@ -24,6 +24,7 @@ function useTelemetry(): { telemetry: Telemetry; status: FeedStatus } {
     serialConnected: false,
     serialError: null,
     bridgeFwRev: null,
+    replay: null,
     fixtures: [],
   })
   const [status, setStatus] = useState<FeedStatus>('connecting')
@@ -87,13 +88,26 @@ export default function App() {
         <h1>Resonance Mirror</h1>
         {/* triple-rule: an HTTP-live feed with the serial ear down is STALE
             data, and the chip must say so (never quietly "listening") */}
-        <span className="source-chip" title={telemetry.serialError ?? 'Feed status'}>
-          <i
-            className="dot"
-            style={{ background: status === 'live' && !telemetry.serialConnected ? 'var(--danger)' : STATUS_DOT[status] }}
-          />
-          {status === 'live' ? (telemetry.serialConnected ? 'listening' : 'ear down — stale') : status}
-        </span>
+        {/* Replay confession outranks everything: a stub-fed window must be
+            unmistakable at a glance (BLD misread one as live, 2026-08-20). */}
+        {telemetry.replay ? (
+          <span
+            className="source-chip"
+            style={{ color: 'var(--danger)', fontWeight: 700 }}
+            title={`bench_stub replaying ${telemetry.replay.capture}${telemetry.replay.captureTsUtc ? ` (captured ${telemetry.replay.captureTsUtc})` : ''} — NOT the fleet`}
+          >
+            <i className="dot" style={{ background: 'var(--danger)' }} />
+            REPLAY · not the fleet
+          </span>
+        ) : (
+          <span className="source-chip" title={telemetry.serialError ?? 'Feed status'}>
+            <i
+              className="dot"
+              style={{ background: status === 'live' && !telemetry.serialConnected ? 'var(--danger)' : STATUS_DOT[status] }}
+            />
+            {status === 'live' ? (telemetry.serialConnected ? 'listening' : 'ear down — stale') : status}
+          </span>
+        )}
         <UpdateChip />
       </header>
 
