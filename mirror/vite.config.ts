@@ -43,6 +43,19 @@ const station = {
 export default defineConfig({
   define: { __MIRROR_COMMIT__: JSON.stringify(commit) },
   plugins: [react()],
-  server: { proxy: { '/bench': bench, '/station': station } },
-  preview: { proxy: { '/bench': bench, '/station': station } },
+  // host:true = LAN-exposed always (phone testing is a standing requirement;
+  // a bare relaunch without --host silently kills the phone URL).
+  // allowedHosts: vite 5.4's DNS-rebinding host-check 403s any hostname it
+  // doesn't know — the mDNS name is the phone URL that survives subnet flaps
+  // (BLD flap-twice proposal), so it's allow-listed by exact name only.
+  server: {
+    host: true,
+    allowedHosts: ['resonances-mac-mini.local', 'Resonances-Mac-mini.local'],
+    proxy: { '/bench': bench, '/station': station },
+  },
+  preview: {
+    host: true,
+    allowedHosts: ['resonances-mac-mini.local', 'Resonances-Mac-mini.local'],
+    proxy: { '/bench': bench, '/station': station },
+  },
 })
