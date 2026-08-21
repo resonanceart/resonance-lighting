@@ -132,7 +132,79 @@ off), `B[s]` fleet dark lease (`NB_PROGRAM_COMMISSION_DARK`), `b` release; packe
 
 ## 3. Fixture firmware — how a light decides to obey
 
-_(agent deep-read, being merged — see §5 status)_
+_Agent deep-read @ `23b4aaa`; `@upstream/main` (`6c046c4`, Ben's tree) cited where marked. Note:
+our fork's `origin/main` carries no `firmware/fixture/` at all — fixture "main" ALWAYS means
+upstream. As with the bridge, the fleet's flashed image is closer to upstream than to our HEAD._
+
+### 3.1 Reception → targeting → dispatch
+- `onEspNowRecv` (`espnow_link.cpp:22-32`): length-gated, RSSI-stamped, ISR-enqueued to a
+  32-deep queue; loop drains ≤6/tick and aborts the drain if a command flipped to maintenance
+  (`net_peer.cpp:339-345`). Wrong protocol `ver` and own-echo rejected (`net_peer.cpp:145-149`).
+- Targeting is cooperative: `nbTargetMatches()` — `00:00:00` = everyone, else exact 3-byte ID
+  match. **Asymmetry:** `NB_SLEEP_FOR` accepts broadcast-all, but `NB_TARGET_SLEEP_FOR` and
+  `NB_TARGET_SOLENOID` use raw `memcmp` and refuse the all-zero target (`net_peer.cpp:285-309`).
+- Full dispatch at HEAD (net_peer.cpp switch): heartbeat/choreo ingest, maint enter/resume,
+  rate, **identify** (target-gated, cached color/blink/deadline), maintain-V, capacity
+  (**persists then reboots**), charge-mA, sleep (broadcast + targeted), solenoid (refused unless
+  `behaviorStrikePermitted()`), **program lease**, profile, neighbor-pin, direct RGBW frame,
+  force-lifecycle. Types 27/28 (`NB_TRANSPORT_SLEEP`, `NB_LOCATE_CONTROL`) exist **only
+  upstream** (`net_peer.cpp:274-299 @upstream/main`).
+- The bridge letters resolve to (`@upstream/main .ino:1468-1550`): `T<id>:1` =
+  `sendIdentify(target, 255s, color=2 green, value=128)`; `T<id>:0` = release; `B<sec>` =
+  fleet program lease `PROG_COMMISSION_DARK`; `b` = lease 0; `Q<hours>` = transport sleep;
+  `L<sec>` = bounded RSSI survey.
+
+### 3.2 Command → state → render → rail
+- **The lease is the control primitive** (`runtime.cpp:45-71`): `program_id==0 || lease_s==0`
+  releases to autonomy; unknown program id **fails closed**; hard-cut or 2 s crossfade by flag;
+  lease expiry/staleness returns to autonomy — never freeze, never blank. SHOWFRAME/DIRECT
+  frames carry an implicit 10 s micro-lease; the explicit lease wins.
+- **Render arbitration** (`fixture.ino:151-186`): boot-guard park > bench-rail-forced-off >
+  identify (**only if color > 0** — the invisible-`i` root cause, `:159`) > smoke > behavior
+  frame. `brightness_cap` from the power ladder is applied at the very top — **no command path
+  routes around it**; cap 0 cuts the rail. First light-up ramps 4×800 ms with VBAT sampled
+  between steps (<2900 mV aborts and parks; <2950 mV caps at 128) (`led_driver.cpp:122-148`).
+- **Identify/tag render** (`led_driver.cpp:167-186`): colors 1=R 2=G 3=B 4=Y 5=W, blink at 1 Hz.
+  The `value` byte (what makes `T` a *low-glow tag at 128* instead of full-blast) exists only
+  `@upstream/main` — **at HEAD a tag renders full-brightness green.**
+- **Dark lease, the load-bearing delta**: `PROG_COMMISSION_DARK` emits a cleared frame. At HEAD
+  (fleet build flag `RES_BASIC_LISTENER`) `behaviorFrame` returns true unconditionally →
+  **rail stays electrically ON rendering black**. `@upstream/main behavior_glue.cpp:508-510`
+  adds `darkLeaseActive() → return false` → the rail is physically cut (`EN_3V3` dropped,
+  RTC-held). "Dark lease cuts the rail" is TRUE of the fleet image, ABSENT at our HEAD.
+
+### 3.3 What a fixture tells you (and when)
+- hb-short every **5 s** (prod): battery mV/mA/SOC, reset reason, ca_state, mode, downlink
+  PDR/RSSI, supply. hb-full every **60 s** (±30% jitter): + fw_rev, cfg, BQ regs, and tail-13
+  (`profile`, `life_state`, `power_tier`, `active_program`, `night_min`). Choreo state at 1 Hz.
+- **The state-change heartbeat trigger is NOT implemented** — call sites are boot ×3, the two
+  schedulers, and pre-PROTECT-sleep only. The "every 60 s + state change" comment is
+  aspirational. Consequence: tier/lifecycle/program changes lag **up to 60 s** at field cadence
+  (corroborates memo 27 gap #6). There is also **no capability advertisement** anywhere — a
+  consumer can only infer opcode support from `fw_rev` in hb-full, once per ≤60 s. This is why
+  the Mirror's gates key on firmware strings (§1.2) rather than any negotiated capability.
+
+### 3.4 Commands vs autonomy — who wins
+- **The voltage ladder wins, always.** PROTECT/OFF force cap 0 at the render top; PROTECT
+  release is compound (supply good + no fault + ≥20 mA + ≥3100 mV held 60 s); no radio command
+  overrides any of it.
+- **Transport/deep sleep beats everything**: rails and radio off, only the 32-bit timer, the
+  USER button, or reset wakes it — all mesh commands are silently LOST while asleep. ⚠ EXT0
+  button wake fires one **unconditional 40 ms solenoid strike** (`solenoid.cpp:157-161`).
+- **Maintenance beats the mesh**: `espNowDeinit()` — every command ignored until resume/timeout.
+- **Day/night**: dusk 1800 s no-supply, dawn 300 s, bounded night 630 min; `forceNight`
+  overrides but is RAM-only. Any received packet suppresses day-charge sleep for **10 min**
+  (`rxHold`) — bridge chatter keeps a prod fleet reachable.
+- **Commission vs field**: commission = no dusk/dawn/bounded-night/day-sleep, dark autonomous
+  program, strikes gated only on tier==FULL — the ladder is the only protection (memo 27's #1
+  readiness gap: the unmade field-profile flip).
+
+### 3.5 The wire's two silence layers (never conflate)
+1. **Fixture-side**: unknown packet type / wrong ver / short length → silent `break`. An
+   old-firmware fixture receiving `Q` (27) or `L` (28) is inert, and NOTHING on the wire
+   distinguishes that from packet loss (field-confirmed in memo 29: "Q silently ignored").
+2. **Bridge-side**: unknown serial LETTER swallowed char-by-char while the dashboard prints
+   "Sent" (§2.4).
 
 ## 4. The chain's honest failure modes (from 26/27 + this pass)
 
@@ -144,9 +216,17 @@ _(agent deep-read, being merged — see §5 status)_
 4. Every command is a **broadcast**; targeting is cooperative payload filtering, not unicast.
 5. Downlink-deaf units exist (9E5AD4, behavioral) — a command path can be one-way even when
    telemetry looks healthy; `dl_pdr` reads 0.0 on all old images and is not a usable field.
+6. **The command plane is unencrypted broadcast on ch 11 with cooperative targeting** — any
+   ESP32 on the channel can sleep, darken, or strike the fleet. The localhost bind + no-auth
+   dashboard is the only software fence on the bench side. (Known posture, now source-pinned.)
+7. State changes lag ≤60 s (no state-change heartbeat trigger) — a command can have WORKED and
+   still look ignored for a minute. Judge by the next hb-full, not the next second.
 
-## 5. Status
+## 5. Status + provenance
 
-- §1 verified by direct source read 2026-08-21 (~17:1xZ), Mirror @ `efca6c3c`.
-- §2/§3 firmware deep-reads in flight (two Explore agents on this repo @ `23b4aaa`); merged
-  next commit.
+- §1: direct source read by lighting-architect, Mirror @ `efca6c3c` (2026-08-21).
+- §2: Explore-agent deep-read of `cores3_bridge.ino` + `net_bench_dashboard.py` @ `23b4aaa`,
+  upstream deltas cited against `6c046c4`.
+- §3: Explore-agent deep-read of `firmware/fixture/` @ `23b4aaa`, upstream deltas ditto.
+- Standing rule renewed by this pass: **read control behavior on upstream/main, not our branch
+  tip** — our fork's HEAD predates the fleet image on both bridge and fixture lanes.
