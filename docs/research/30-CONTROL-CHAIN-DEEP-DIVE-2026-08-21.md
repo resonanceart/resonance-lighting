@@ -72,7 +72,63 @@ button falls to disabled/STALE, by construction.
 
 ## 2. Bridge OS (cores3_bridge) — serial in, radio out
 
-_(agent deep-read, being merged — see §5 status)_
+_Agent deep-read @ `23b4aaa` (this branch); upstream/main cited where marked. All file:line
+references are to `firmware/cores3_bridge/cores3_bridge.ino` and `ops/bench/net_bench_dashboard.py`._
+
+### 2.0 Headline: our checkout is NOT the flashed bridge
+This branch's bridge source is `cores3-bridge-2026-08-15.1` (`.ino:48`) — **it has no `T`, `B`,
+`b`, `Q`, or `L` opcode** (full switch `.ino:1153-1390`). Those handlers exist only on
+**upstream/main** (`cores3-bridge-2026-08-17.2`, upstream lines 1468-1551), which is what's
+flashed on bench bridge E39A34 (commit `507c3ac`). The Mirror's capability gates (§1.2) encode
+exactly this split. Anyone reading control behavior must read **upstream**, not our branch tip.
+
+### 2.1 The command path, HTTP → radio
+- `POST /api/cmd` (`py:1375-1390`): JSON `{cmd,label}` → `valid_command()` regex allowlist
+  (`py:1277-1326`) → `worker.send_command` → raw `handle.write(cmd.encode("ascii"))` —
+  **no newline, no framing, no lock** (`py:452-459`). Server binds `127.0.0.1:8765` by default.
+- Bridge `handleSerial()` reads **one char per loop()** and switches on it (`.ino:1147-1391`);
+  arguments are scavenged from the still-arriving byte stream inside 40-120 ms timed windows
+  (`readSerialUint/HexId/Arg`, `.ino:998-1049`). A slow or split USB write can truncate an
+  argument into its default.
+- ESP-NOW TX: every frame goes to broadcast `FF:FF:FF:FF:FF:FF` (`.ino:81`); targeting is the
+  `target_id[3]` payload field, `00:00:00` = all (`packet.h:197-270`, matcher `:331-334`).
+  Broadcast commands repeat **4× @ 5 ms**; targeted ones **6× @ 8 ms** (`.ino:415-461`).
+- **Nothing comes back.** No ack packet type exists (`packet.h:31-58`); the bridge ingests only
+  `NB_HEARTBEAT` and `NB_SCANAP`. `sendok=` is a TX-queue counter, not delivery.
+
+### 2.2 The return path (telemetry)
+Heartbeats upsert a **fixed 192-slot peer table with no eviction** (`.ino:57,368,664-678`) —
+"peers" = ever-seen; slot 193+ is silently dropped. `fwRev` and `has*` flags are **sticky** from
+the last full heartbeat; supply fields re-zero when absent (`.ino:715-824`). Serial emits 1 Hz:
+one `nb-master` + one `nb-peer` line per slot (`.ino:875-988`). The dashboard regex-parses these
+into `state.peers` and serves `/api/state` + a 1 Hz full-snapshot SSE on `/events`
+(`py:120-130,1359-1372`) — which is exactly what the Mirror consumes (§1.1).
+
+### 2.3 Opcode map (HEAD = 08-15.1 source)
+Bridge accepts: `S[s]` sleep (default 21600 s!), `i[id][:s]`/`I` identify (invisible — color 0),
+`U[id]` 35 s maint burst, `c/+/-/R<hz>` rate, `m<v10>` maintain-voltage, `C` capacity, `G`
+charge-mA (NOT a color verb), `K<id>:<s>` solenoid, `P<id>[:s]` targeted sleep, `D` drawdown,
+`F` profile flip (persisted), `t/r/h/?` status. Dashboard's allowlist is a strict subset —
+it additionally REFUSES `F/t/h/?/A`. **[upstream 08-17.2 adds]** `Q<hours>` transport sleep,
+`L[seconds]` RSSI survey (default 120), `T<id>:0|1` green tag (identify color=2, bright=128 /
+off), `B[s]` fleet dark lease (`NB_PROGRAM_COMMISSION_DARK`), `b` release; packet types
+`NB_TRANSPORT_SLEEP=27`/`NB_LOCATE_CONTROL=28` exist only in upstream `packet.h:62-63`.
+
+### 2.4 Safety semantics — measured, not assumed
+- Unknown opcode = `default: break` **silent swallow** (`.ino:1388-1389`) — no error, no echo.
+- Serial opened **without `exclusive=True`** (`py:166`) and `send_command` takes no lock while
+  HTTP serves concurrently — two writers CAN interleave bytes inside the bridge's argument
+  windows (the known two-dashboards hazard, now traced to source).
+- Serial drop: rows keep serving with **frozen `age_ms` forever** (`py:185-187,336`) — a
+  disconnected bridge looks like a healthy fleet unless you read the `serial` pill. This is the
+  exact failure the Mirror's triple-rule (§1.1) neutralizes.
+- **No rate limits, no confirm dialogs** anywhere in the dashboard: `Sleep 6h` (`S`) and `R1`
+  are one-click fleet-wide unconfirmed buttons (`py:673,695`); localhost bind + no auth is the
+  only fence on raw `/api/cmd`.
+- **"Sent" ≠ delivered.** HTTP 200 only means the serial write didn't raise (`py:1123-1139`).
+  ONE closed-loop exception: `m<v10>` polls `/api/state` up to 6 s and reports "Verified" only
+  when every fresh peer's `bq_vindpm_mv` matches (`py:1140-1159`). Everything else —
+  `S/U/i/I/c/R/C/G/K/P/D` — is fire-and-forget with no verification.
 
 ## 3. Fixture firmware — how a light decides to obey
 
