@@ -19,7 +19,7 @@ completeness and CANNOT register in v1 (the registry throws).
 | A1 | Fleet census | `net_bench_dashboard` peer table | Heard-lights table: id · last-heard · fw. Counts always cite the listen window | `/api/state` peers | READ | ✅ ADOPTED (4aab1fed) |
 | A2 | Stat tile | dashboard roll-ups | One number + label (alive, stale) | derived | READ | ✅ ADOPTED (4aab1fed) |
 | A3 | Signal strength | per-peer `rssi_dbm` | Bars per light, worst first; honest empty on text-mode feeds | `/api/state` | READ | ✅ ADOPTED (4aab1fed) |
-| A4 | Delivery meter | per-peer `pdr` / `dl_pdr` | Packet-delivery ‰ per light; loss-knee coloring per Ben's ratesweep verdicts | `/api/state` | READ | spec |
+| A4 | Delivery meter | per-peer `pdr` / `dl_pdr` | Packet-delivery ‰ per light; loss-knee coloring per Ben's ratesweep verdicts. ⚠ `dl_pdr` reads 0.0 on all old fixture images — not usable until the fleet is homogeneous on new fw (deep-dive 30 §4.5) | `/api/state` | READ | spec |
 | A5 | Battery health | per-peer `battery_v/ma`, `soc_pct`, `power_tier` | mV·mA·SoC·tier rows; `soc=255`→"—" never 0; charging = negative mA; tier telemetry-authoritative (8d0b20ca) | `/api/state` | READ | ✅ ADOPTED (4aab1fed) |
 | A6 | Charger truth | `bq_*` conditional block | BQ25628E register readout per light, only when the tail arrives | `/api/state` | READ | spec |
 | A7 | Program truth | `ca_state` / `peer_mode` / choreo | Fleet distribution bar + its own staleness caveat (60 s on text bridge) | `/api/state` | READ | ✅ ADOPTED (4aab1fed) |
